@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { searchPlacePhotos } from '../../service/photoApi'; // Import our new photo API service
 
 const SharedTripView = () => {
   const { shareId } = useParams();

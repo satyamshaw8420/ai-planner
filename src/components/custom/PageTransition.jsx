@@ -4,7 +4,9 @@ import AnimatedRoutes from './AnimatedRoutes';
 const PageTransition = ({ children }) => {
   return (
     <AnimatedRoutes>
-      {children}
+      <div className="w-full h-full">
+        {children}
+      </div>
     </AnimatedRoutes>
   );
 };

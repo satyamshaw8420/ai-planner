@@ -1,153 +1,200 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useFetchTrip } from '@/hooks/useFetchTrip';
 import { useShareTrip } from '@/hooks/useShareTrip';
 import { toast } from 'sonner';
+import { enhanceHotelData } from '@/service/hotelApi'; // Import our new hotel API service
+import { searchPlacePhotos } from '@/service/photoApi'; // Import our new photo API service
 
 const TripDetails = () => {
   const { id } = useParams();
   const { trip: tripData } = useFetchTrip(id);
   const { generateShareLink, copyToClipboard } = useShareTrip();
   const [isSharing, setIsSharing] = useState(false);
+  const [enhancedHotels, setEnhancedHotels] = useState([]); // State for enhanced hotel data
+  const [isEnhancing, setIsEnhancing] = useState(false); // State to track enhancement process
   
-  // Show loading state while fetching data
-  if (!tripData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading trip details...</p>
-        </div>
-      </div>
-    );
-  }
+  // States for data processing
+  const [parsedTripData, setParsedTripData] = useState(null);
+  const [itineraryData, setItineraryData] = useState([]);
+  const [hotelsData, setHotelsData] = useState([]);
+  const [weatherInfo, setWeatherInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Show error state if trip not found
-  if (!tripData._id) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center bg-white rounded-2xl shadow-lg p-8 max-w-md">
-          <div className="text-5xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Trip Not Found</h2>
-          <p className="text-gray-600 mb-6">The trip you're looking for doesn't exist or has been removed.</p>
-          <button 
-            onClick={() => window.history.back()}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-  
-  // Parse the tripData if it's a string
-  let parsedTripData = null;
-  if (typeof tripData.tripData === 'string') {
-    try {
-      // First try to parse as JSON
-      parsedTripData = JSON.parse(tripData.tripData);
-    } catch (e) {
-      // If that fails, try to extract JSON from markdown code blocks
-      try {
-        // Extract JSON from markdown code blocks if present
-        const jsonMatch = tripData.tripData.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) {
-          parsedTripData = JSON.parse(jsonMatch[1]);
-        } else {
-          // If no code block, try to parse the entire string
-          parsedTripData = JSON.parse(tripData.tripData);
-        }
-      } catch (e2) {
-        console.error('Failed to parse trip data:', e2);
-        // If all parsing fails, use the raw string
-        parsedTripData = tripData.tripData;
-      }
+  // Process trip data when it changes
+  useEffect(() => {
+    if (!tripData) {
+      setIsLoading(true);
+      return;
     }
-  } else {
-    parsedTripData = tripData.tripData;
-  }
-  
-  // If parsedTripData is still a string, try to convert it to an object
-  if (typeof parsedTripData === 'string') {
+    
     try {
-      // Attempt to parse as JSON again
-      parsedTripData = JSON.parse(parsedTripData);
-    } catch (e) {
-      // If it's still a string, check if it contains weather info at the beginning
-      // Extract weather info if present
-      const weatherMatch = parsedTripData.match(/\*\*Current Weather in ([\s\S]*?)\*\*\n([\s\S]*?)\n\n/);
-      let weatherInfo = null;
-      let remainingData = parsedTripData;
+      setIsLoading(false);
       
-      if (weatherMatch) {
-        weatherInfo = weatherMatch[2];
-        remainingData = parsedTripData.replace(/\*\*Current Weather in [\s\S]*?\*\*\n[\s\S]*?\n\n/, '');
+      // Show error state if trip not found
+      if (!tripData._id) {
+        setError('Trip not found');
+        return;
       }
       
-      // Try to parse the remaining data as JSON
-      try {
-        const jsonMatch = remainingData.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) {
-          parsedTripData = JSON.parse(jsonMatch[1]);
-        } else {
-          parsedTripData = JSON.parse(remainingData);
+      // Debug: Log the raw trip data to see its structure
+      console.log('Raw trip data in TripDetails:', tripData);
+      console.log('Trip Data (raw):', tripData.tripData);
+      
+      // Parse the tripData if it's a string
+      let parsedData = tripData.tripData;
+      if (typeof tripData.tripData === 'string') {
+        try {
+          // Try to parse as JSON
+          parsedData = JSON.parse(tripData.tripData);
+          console.log('Parsed trip data:', parsedData);
+        } catch (e) {
+          // If parsing fails, try to extract JSON from the string
+          console.log("Failed to parse trip data as JSON, attempting to extract JSON");
+          const jsonStart = tripData.tripData.indexOf('{');
+          const jsonEnd = tripData.tripData.lastIndexOf('}');
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            try {
+              const jsonString = tripData.tripData.substring(jsonStart, jsonEnd + 1);
+              parsedData = JSON.parse(jsonString);
+              console.log('Extracted and parsed trip data:', parsedData);
+            } catch (extractError) {
+              console.log("Failed to extract and parse JSON from trip data");
+              // Try to parse as a more relaxed JSON (sometimes AI adds extra commas or formatting issues)
+              try {
+                // Attempt to fix common JSON issues
+                let fixedJsonString = tripData.tripData.substring(jsonStart, jsonEnd + 1);
+                // Fix trailing commas
+                fixedJsonString = fixedJsonString.replace(/,\s*([}\]])/g, '$1');
+                // Fix single quotes to double quotes (be careful not to mess up strings)
+                // This is a simple approach and might not work for all cases
+                parsedData = JSON.parse(fixedJsonString);
+                console.log('Fixed and parsed trip data:', parsedData);
+              } catch (fixError) {
+                console.log("Failed to fix and parse JSON from trip data");
+                // Keep it as a string
+              }
+            }
+          }
+        }
+      }
+      
+      // Normalize itinerary data structure
+      const normalizeItinerary = (data) => {
+        if (!data) return data;
+        
+        // If data has an itinerary property, use that
+        if (data.itinerary) {
+          return data;
         }
         
-        // Add weather info if extracted
-        if (weatherInfo) {
-          parsedTripData.weatherInfo = weatherInfo;
+        // Check if data itself looks like an itinerary (has day-like keys)
+        const keys = Object.keys(data);
+        const dayKeys = keys.filter(key => key.toLowerCase().includes('day'));
+        
+        if (dayKeys.length > 0) {
+          return { itinerary: data };
         }
-      } catch (e2) {
-        // If all parsing fails, create a fallback object with the raw data
-        parsedTripData = {
-          itinerary: [
-            {
-              day: "Trip Information",
-              plan: [
-                {
-                  placeName: "Complete Trip Details",
-                  placeDetails: parsedTripData,
-                  timeToVisit: "All Day"
-                }
-              ]
-            }
-          ]
-        };
+        
+        // If we have a flat structure with day1, day2, etc. at the top level
+        return data;
+      };
+      
+      // Apply normalization
+      parsedData = normalizeItinerary(parsedData);
+      setParsedTripData(parsedData);
+      
+      // Handle different itinerary structures
+      let itinerary = [];
+      let hotels = [];
+      let weather = null;
+      
+      // Extract weather info if present in the object
+      if (parsedData.weatherInfo) {
+        weather = parsedData.weatherInfo;
+      } else if (parsedData.weather) {
+        // Format weather data if stored as structured object
+        weather = `**Current Weather in ${tripData.userSelection.location.label}:**
+🌡️ ${parsedData.weather.temperature}°C, ${parsedData.weather.description}
+💨 Humidity: ${parsedData.weather.humidity}%, Wind: ${parsedData.weather.windSpeed} m/s`;
+      }
+      
+      setWeatherInfo(weather);
+      
+      // Check if itinerary is an array
+      if (Array.isArray(parsedData?.itinerary)) {
+        itinerary = parsedData.itinerary;
+        hotels = parsedData.hotels || [];
+      } 
+      // Check if itinerary is an object with day keys
+      else if (parsedData?.itinerary && typeof parsedData.itinerary === 'object') {
+        // Sort day keys numerically
+        const sortedEntries = Object.entries(parsedData.itinerary)
+          .sort(([a], [b]) => {
+            const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+            const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+            return numA - numB;
+          });
+        
+        itinerary = sortedEntries.map(([dayKey, dayData], index) => ({
+          day: `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
+          date: dayData.date || dayData.theme || `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
+          plan: dayData.plan || dayData.places || dayData.activities || []
+        }));
+        hotels = parsedData.hotels || [];
+      } else {
+        // Handle day1, day2, etc. format at top level
+        const dayKeys = Object.keys(parsedData)
+          .filter(key => key.toLowerCase().startsWith('day'))
+          .sort((a, b) => {
+            const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+            const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+            return numA - numB;
+          });
+        
+        if (dayKeys.length > 0) {
+          itinerary = dayKeys.map((dayKey, index) => {
+            const dayData = parsedData[dayKey];
+            const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
+            return {
+              day: `Day ${dayNumber}`,
+              date: dayData.date || dayData.theme || `Day ${dayNumber}`,
+              plan: dayData.plan || dayData.places || dayData.activities || []
+            };
+          });
+          hotels = parsedData.hotels || [];
+        }
+      }
+      
+      setItineraryData(itinerary);
+      setHotelsData(hotels);
+    } catch (err) {
+      console.error('Error processing trip data:', err);
+      setError('Failed to process trip data');
+    }
+  }, [tripData]);
+  
+  // Function to enhance hotel data with real-time information
+  const enhanceHotels = async () => {
+    if (hotelsData.length > 0 && !isEnhancing) {
+      setIsEnhancing(true);
+      try {
+        const enhanced = await enhanceHotelData(hotelsData, tripData.userSelection.location.label);
+        setEnhancedHotels(enhanced);
+        if (enhanced.some(hotel => hotel.enhanced)) {
+          toast.success('Hotel information enhanced with real-time data!');
+        } else {
+          toast.info('No additional hotel data found. Showing original information.');
+        }
+      } catch (error) {
+        console.error('Error enhancing hotels:', error);
+        toast.error('Failed to enhance hotel information. Showing original data.');
+      } finally {
+        setIsEnhancing(false);
       }
     }
-  }
-  
-  // Handle different itinerary structures
-  let itineraryData = [];
-  let hotelsData = [];
-  let weatherInfo = null;
-  
-  // Extract weather info if present in the object
-  if (parsedTripData.weatherInfo) {
-    weatherInfo = parsedTripData.weatherInfo;
-  } else if (parsedTripData.weather) {
-    // Format weather data if stored as structured object
-    weatherInfo = `**Current Weather in ${tripData.userSelection.location.label}:**
-🌡️ ${parsedTripData.weather.temperature}°C, ${parsedTripData.weather.description}
-💨 Humidity: ${parsedTripData.weather.humidity}%, Wind: ${parsedTripData.weather.windSpeed} m/s`;
-  }
-  
-  // Check if itinerary is an array (like in the Nepal example)
-  if (Array.isArray(parsedTripData?.itinerary)) {
-    itineraryData = parsedTripData.itinerary;
-    hotelsData = parsedTripData.hotels || [];
-  } 
-  // Check if itinerary is an object with day keys (previous format)
-  else if (parsedTripData?.itinerary && typeof parsedTripData.itinerary === 'object') {
-    itineraryData = Object.entries(parsedTripData.itinerary).map(([dayKey, dayData], index) => ({
-      day: `Day ${index + 1}`,
-      date: dayData.date || dayData.theme || `Day ${index + 1}`,
-      plan: dayData.plan || dayData.places || []
-    }));
-    hotelsData = parsedTripData.hotels || [];
-  }
-  
+  };  
   const handleShareTrip = async () => {
     setIsSharing(true);
     try {
@@ -185,7 +232,140 @@ const TripDetails = () => {
     const travelers = ['Just Me', 'A Couple', 'Family', 'Friends'];
     return travelers[travelersId - 1] || 'Unknown';
   };
-
+  
+  // Function to extract place recommendations from trip data
+  const extractPlaceRecommendations = (data) => {
+    const places = [];
+    
+    // Helper function to recursively search for place data
+    const searchForPlaces = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      // If this object looks like a place/activity
+      if (obj.placeName || obj.placeDetails) {
+        places.push(obj);
+        return;
+      }
+      
+      // Recursively search in arrays and objects
+      if (Array.isArray(obj)) {
+        obj.forEach(item => searchForPlaces(item));
+      } else {
+        Object.values(obj).forEach(value => searchForPlaces(value));
+      }
+    };
+    
+    searchForPlaces(data);
+    return places;
+  };
+  
+  // Function to render place recommendations
+  const renderPlaceRecommendations = (places) => {
+    if (!places || places.length === 0) return null;
+    
+    return (
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+          <span className="mr-2">🌟</span> Place Recommendations
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {places.map((place, index) => (
+            <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-xl font-bold text-gray-800">{place.placeName || place.name || place.title || `Place ${index + 1}`}</h3>
+                {(place.rating || place.reviewScore) && (
+                  <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span className="text-sm font-semibold">{place.rating || place.reviewScore || 'N/A'}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-gray-600 mb-3">{place.placeDetails || place.description || place.details || 'No details available'}</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(place.ticketPricing || place.price || place.cost) && (
+                  <div className="flex items-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-gray-700">{place.ticketPricing || place.price || place.cost}</span>
+                  </div>
+                )}
+                
+                {(place.timeTravel || place.duration || place.timeToVisit) && (
+                  <div className="flex items-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-gray-700">{place.timeTravel || place.duration || place.timeToVisit}</span>
+                  </div>
+                )}
+                
+                {place.bestTimeToVisit && (
+                  <div className="flex items-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span className="text-gray-700">{place.bestTimeToVisit}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  
+  // Automatically try to enhance hotel data when component mounts
+  // We need to put this useEffect after all the variable declarations but before the return statement
+  // But we also need to make sure it doesn't run before the component is fully initialized
+  useEffect(() => {
+    // Only run if we have hotel data and haven't enhanced yet
+    if (hotelsData.length > 0 && enhancedHotels.length === 0) {
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        enhanceHotels();
+      }, 500);
+      
+      // Cleanup timer
+      return () => clearTimeout(timer);
+    }
+  }, [hotelsData, enhancedHotels]); // Dependency array ensures this runs when hotelsData or enhancedHotels change
+  
+  // Show loading state while fetching data
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading trip details...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error state if trip not found
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl shadow-lg p-8 max-w-md">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Trip Not Found</h2>
+          <p className="text-gray-600 mb-6">The trip you're looking for doesn't exist or has been removed.</p>
+          <button 
+            onClick={() => window.history.back()}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="min-h-screen py-10 px-4 md:px-8 relative overflow-hidden">
       {/* Background with image and overlay similar to Create Trip page - increased visibility */}
@@ -247,15 +427,37 @@ const TripDetails = () => {
           </div>
         )}
 
+        {/* Place Recommendations Section */}
+        {renderPlaceRecommendations(extractPlaceRecommendations(parsedTripData))}
+        
         {/* Hotels Section */}
         {hotelsData.length > 0 && (
           <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-              <span className="mr-2">🏨</span> Recommended Hotels
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                <span className="mr-2">🏨</span> Recommended Hotels
+              </h2>
+              <button 
+                onClick={enhanceHotels}
+                disabled={isEnhancing}
+                className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-full transition-colors flex items-center"
+              >
+                {isEnhancing ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Enhancing...
+                  </>
+                ) : (
+                  'Refresh Data'
+                )}
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {hotelsData.map((hotel, index) => (
-                <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+              {(enhancedHotels.length > 0 ? enhancedHotels : hotelsData).map((hotel, index) => (
+                <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow">
                   <div className="h-48 overflow-hidden">
                     <img 
                       src={hotel.hotelImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'} 
@@ -267,11 +469,14 @@ const TripDetails = () => {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-xl font-bold text-gray-800">{hotel.hotelName || 'Hotel Name'}</h3>
-                      <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-                        <span>{hotel.rating || 'N/A'}</span>
+                        <span className="text-sm font-semibold">
+                          {hotel.enhanced && hotel.realTimeRating ? `${hotel.realTimeRating}/5` : (hotel.rating || 'N/A')}
+                          {hotel.enhanced && <span className="text-xs ml-1">★</span>}
+                        </span>
                       </div>
                     </div>
                     <p className="text-gray-600 mb-3">{hotel.hotelAddress || 'Address not available'}</p>
@@ -282,6 +487,11 @@ const TripDetails = () => {
                         Book Now
                       </button>
                     </div>
+                    {hotel.enhanced && hotel.realTimePriceRange && (
+                      <div className="mt-3 text-sm text-gray-500">
+                        Real-time pricing: ₹{hotel.realTimePriceRange.min} - ₹{hotel.realTimePriceRange.max}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -315,28 +525,34 @@ const TripDetails = () => {
                           </div>
                           <div className="md:w-2/3">
                             <div className="flex justify-between items-start mb-2">
-                              <h4 className="text-xl font-bold text-gray-800">{place.placeName || 'Place Name'}</h4>
-                              <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                </svg>
-                                <span>{place.rating || 'N/A'}</span>
-                              </div>
+                              <h4 className="text-xl font-bold text-gray-800">{place.placeName || place.name || place.title || 'Place Name'}</h4>
+                              {(place.rating || place.reviewScore) && (
+                                <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                  </svg>
+                                  <span className="text-sm font-semibold">{place.rating || place.reviewScore || 'N/A'}</span>
+                                </div>
+                              )}
                             </div>
-                            <p className="text-gray-600 mb-3">{place.placeDetails || 'Details not available'}</p>
+                            <p className="text-gray-600 mb-3">{place.placeDetails || place.description || place.details || 'Details not available'}</p>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                              <div className="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-gray-700">{place.timeToVisit || place.timeTravel || 'Time not specified'}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-gray-700 font-semibold">{place.ticketPricing || 'Price not available'}</span>
-                              </div>
+                              {(place.timeToVisit || place.timeTravel || place.duration) && (
+                                <div className="flex items-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span className="text-gray-700">{place.timeToVisit || place.timeTravel || place.duration || 'Time not specified'}</span>
+                                </div>
+                              )}
+                              {(place.ticketPricing || place.price || place.cost) && (
+                                <div className="flex items-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span className="text-gray-700 font-semibold">{place.ticketPricing || place.price || place.cost || 'Price not available'}</span>
+                                </div>
+                              )}
                               <div className="flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -373,20 +589,25 @@ const TripDetails = () => {
           </div>
         ) : (
           // Fallback for when itinerary data isn't properly structured
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-              <span className="mr-2">📅</span> Trip Itinerary
-            </h2>
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
-              <div className="prose max-w-none">
-                {typeof parsedTripData === 'string' ? (
-                  <pre className="whitespace-pre-wrap">{parsedTripData}</pre>
-                ) : (
-                  <pre className="whitespace-pre-wrap">{JSON.stringify(parsedTripData, null, 2)}</pre>
-                )}
+          (!parsedTripData.itinerary && 
+            !parsedTripData.day1 && 
+            !parsedTripData.Day1 && 
+            !Object.keys(parsedTripData || {}).some(key => key.toLowerCase().includes('day'))) ? (
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <span className="mr-2">📅</span> Trip Itinerary
+              </h2>
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
+                <div className="prose max-w-none">
+                  {typeof parsedTripData === 'string' ? (
+                    <pre className="whitespace-pre-wrap">{parsedTripData}</pre>
+                  ) : (
+                    <pre className="whitespace-pre-wrap">{JSON.stringify(parsedTripData, null, 2)}</pre>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          ) : null
         )}
 
         {/* Action Buttons */}
@@ -398,8 +619,7 @@ const TripDetails = () => {
             Download PDF
           </button>
           <button 
-   
-   onClick={handleShareTrip}
+            onClick={handleShareTrip}
             disabled={isSharing}
             className={`font-medium py-3 px-8 rounded-lg transition-colors flex items-center ${isSharing ? 'bg-green-400 cursor-not-allowed text-black' : 'bg-green-600 hover:bg-green-700 text-black'}`}
           >

@@ -40,7 +40,7 @@ export const chatSession = model.startChat({
     },
     {
       role: "model",
-      parts: [{ text: "{\"hotels\":[{\"hotelName\":\"The D Las Vegas\",\"hotelAddress\":\"Fremont Street, Las Vegas, NV\",\"price\":\"$50 per night\",\"hotelImageUrl\":\"https://www.thed.com/images/hero/main-hero-02.jpg\",\"geoCoordinates\":{\"lat\":36.1699,\"lng\":-115.1438},\"rating\":4,\"description\":\"A budget-friendly hotel located in downtown Las Vegas with easy access to attractions.\"}]}" }],
+      parts: [{ text: "{\"hotels\":[{\"hotelName\":\"The D Las Vegas\",\"hotelAddress\":\"Fremont Street, Las Vegas, NV\",\"price\":\"$50 per night\",\"hotelImageUrl\":\"https://www.thed.com/images/hero/main-hero-02.jpg\",\"geoCoordinates\":{\"lat\":36.1699,\"lng\":-115.1438},\"rating\":4,\"description\":\"A budget-friendly hotel located in downtown Las Vegas with easy access to attractions.\"}], \"itinerary\": {\"day1\": {\"date\": \"Day 1\", \"plan\": [{\"timeSlot\": \"Morning\", \"activities\": [{\"placeName\": \"Fremont Street Experience\", \"placeDetails\": \"Historic downtown Las Vegas street with canopy of lights\", \"ticketPricing\": \"Free\", \"timeTravel\": \"30 minutes\", \"bestTimeToVisit\": \"Evening for light show\", \"rating\": 4.5}]}, {\"timeSlot\": \"Evening\", \"activities\": [{\"placeName\": \"Bellagio Fountains\", \"placeDetails\": \"Iconic water show with music and lights\", \"ticketPricing\": \"Free\", \"timeTravel\": \"20 minutes\", \"bestTimeToVisit\": \"Evening shows at 3pm, 6pm, 9pm, midnight\", \"rating\": 4.7}]}]}}" }],
     },
   ],
 });

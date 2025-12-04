@@ -1,21 +1,40 @@
-import React from 'react'
-import { Button } from '../ui/button'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FcGoogle } from 'react-icons/fc'
+import { FiLogOut } from 'react-icons/fi'
 
 const Header = () => {
   const navigate = useNavigate();
-  
-  // Function to trigger Google Sign-In
+  const [user, setUser] = useState(null);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+        localStorage.removeItem('user');
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setUser(null);
+    navigate('/');
+  };
+
   const handleGoogleSignIn = () => {
-    // Dispatch a custom event that the CreateTrip component can listen for
     window.dispatchEvent(new CustomEvent('open-google-signin'));
   };
 
   return (
-    <div className='p-3 shadow-sm flex justify-between items-center px-5'>
+    <div className='p-3 shadow-sm flex justify-between items-center px-5 w-full'>
       <div className="flex items-center gap-8 ml-0">
-        <img src="/logo.svg" alt="TravelEase Logo" style={{ width: '100px', height: 'auto' }} />
-        <div className="hidden md:flex gap-10">
+        <img src="/logo.svg" alt="TravelEase Logo" className="h-8 w-auto" />
+        <div className="hidden md:flex gap-6">
           <button 
             onClick={() => navigate('/')} 
             className="text-gray-700 hover:text-blue-600 font-medium"
@@ -73,8 +92,23 @@ const Header = () => {
         </div>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" onClick={handleGoogleSignIn}>Log In</Button>
-        <Button onClick={handleGoogleSignIn}>Sign Up</Button>
+        {user ? (
+          <button
+            onClick={handleLogout}
+            className="bg-white text-gray-800 p-2 rounded-md hover:bg-gray-100 transition-all duration-300 flex items-center justify-center w-10 h-10 border border-gray-300"
+            title="Logout"
+          >
+            <FiLogOut className="text-xl" />
+          </button>
+        ) : (
+          <button
+            onClick={handleGoogleSignIn}
+            className="bg-white text-gray-800 p-2 rounded-md hover:bg-gray-100 transition-all duration-300 flex items-center justify-center w-10 h-10 border border-gray-300"
+            title="Sign in with Google"
+          >
+            <FcGoogle className="text-xl" />
+          </button>
+        )}
       </div>
     </div>
   )

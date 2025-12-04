@@ -13,6 +13,7 @@ const TripHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
   const [sharingTripId, setSharingTripId] = useState(null);
+  const [expandedTrips, setExpandedTrips] = useState({}); // Track which trips have expanded itineraries
 
   useEffect(() => {
     if (allTrips) {
@@ -65,6 +66,304 @@ const TripHistory = () => {
   const getTravelersLabel = (travelersId) => {
     const travelers = ['Just Me', 'A Couple', 'Family', 'Friends'];
     return travelers[travelersId - 1] || 'Unknown';
+  };
+
+  // Toggle itinerary expansion for a trip
+  const toggleItinerary = (tripId) => {
+    setExpandedTrips(prev => ({
+      ...prev,
+      [tripId]: !prev[tripId]
+    }));
+  };
+
+  // Function to parse trip data
+  const parseTripData = (tripData) => {
+    if (!tripData) return null;
+    
+    // Parse the trip data if it's a string
+    let parsedData = tripData;
+    if (typeof tripData === 'string') {
+      try {
+        // Try to parse as JSON
+        parsedData = JSON.parse(tripData);
+      } catch (e) {
+        // If parsing fails, try to extract JSON from the string
+        const jsonStart = tripData.indexOf('{');
+        const jsonEnd = tripData.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          try {
+            const jsonString = tripData.substring(jsonStart, jsonEnd + 1);
+            parsedData = JSON.parse(jsonString);
+          } catch (extractError) {
+            // Try to parse as a more relaxed JSON (sometimes AI adds extra commas or formatting issues)
+            try {
+              // Attempt to fix common JSON issues
+              let fixedJsonString = tripData.substring(jsonStart, jsonEnd + 1);
+              // Fix trailing commas
+              fixedJsonString = fixedJsonString.replace(/,\s*([}\]])/g, '$1');
+              parsedData = JSON.parse(fixedJsonString);
+            } catch (fixError) {
+              // Keep it as a string
+            }
+          }
+        }
+      }
+    }
+    
+    // Normalize itinerary data structure
+    const normalizeItinerary = (data) => {
+      if (!data) return data;
+      
+      // If data has an itinerary property, use that
+      if (data.itinerary) {
+        return data;
+      }
+      
+      // Check if data itself looks like an itinerary (has day-like keys)
+      const keys = Object.keys(data);
+      const dayKeys = keys.filter(key => key.toLowerCase().includes('day'));
+      
+      if (dayKeys.length > 0) {
+        return { itinerary: data };
+      }
+      
+      // If we have a flat structure with day1, day2, etc. at the top level
+      return data;
+    };
+    
+    // Apply normalization
+    parsedData = normalizeItinerary(parsedData);
+    return parsedData;
+  };
+
+  // Function to render time slot activities
+  const renderTimeSlot = (timeSlotData, index) => {
+    // Handle case where timeSlotData might be undefined or null
+    if (!timeSlotData) {
+      return (
+        <div key={index} className="mb-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-3 bg-blue-50 p-3 rounded-lg">
+            Time slot data not available
+          </h3>
+        </div>
+      );
+    }
+    
+    // Handle case where timeSlotData might be a string
+    if (typeof timeSlotData === 'string') {
+      return (
+        <div key={index} className="mb-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-3 bg-blue-50 p-3 rounded-lg">
+            {timeSlotData}
+          </h3>
+        </div>
+      );
+    }
+    
+    return (
+      <div key={index} className="mb-6">
+        <h3 className="text-xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 rounded-lg">
+          {timeSlotData.timeSlot || `Time Slot ${index + 1}`}
+        </h3>
+        <div className="space-y-4">
+          {timeSlotData.activities && Array.isArray(timeSlotData.activities) ? (
+            timeSlotData.activities.map((activity, actIndex) => {
+              return renderActivityCard(activity, actIndex);
+            })
+          ) : (
+            <p>No activities available for this time slot</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render day plan
+  const renderDayPlan = (dayData, dayNumber) => {
+    // Handle case where dayData might be undefined or null
+    if (!dayData) {
+      return (
+        <div key={dayNumber} className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">Day {dayNumber}</h2>
+            <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+              No data available
+            </span>
+          </div>
+        </div>
+      );
+    }
+    
+    // Handle case where dayData might be a string
+    if (typeof dayData === 'string') {
+      return (
+        <div key={dayNumber} className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">Day {dayNumber}</h2>
+          </div>
+          <p>{dayData}</p>
+        </div>
+      );
+    }
+    
+    return (
+      <div key={dayNumber} className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Day {dayNumber}</h2>
+          {dayData.date && (
+            <span className="text-gray-600 bg-blue-100 px-3 py-1 rounded-full">
+              {dayData.date}
+            </span>
+          )}
+        </div>
+        
+        {dayData.plan && Array.isArray(dayData.plan) ? (
+          dayData.plan.map((timeSlot, index) => {
+            return renderTimeSlot(timeSlot, index);
+          })
+        ) : (
+          <p>No plan available for this day</p>
+        )}
+      </div>
+    );
+  };
+
+  // Function to render activity cards
+  const renderActivityCard = (activity, index) => {
+    // Handle case where activity might be undefined or null
+    if (!activity) {
+      return (
+        <div key={index} className="bg-white rounded-xl shadow-sm p-5 mb-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <p className="text-gray-700">Activity data not available</p>
+        </div>
+      );
+    }
+    
+    // Handle case where activity might be a string
+    if (typeof activity === 'string') {
+      return (
+        <div key={index} className="bg-white rounded-xl shadow-sm p-5 mb-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <p className="text-gray-700">{activity}</p>
+        </div>
+      );
+    }
+    
+    return (
+      <div key={index} className="bg-white rounded-xl shadow-sm p-5 mb-4 border border-gray-200 hover:shadow-md transition-shadow">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Place Image */}
+          <div className="md:w-1/3 h-48 rounded-xl overflow-hidden">
+            <img 
+              src={activity.placeImageUrl || 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'} 
+              alt={activity.placeName || 'Place Image'}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'; }}
+            />
+          </div>
+          
+          {/* Activity Details */}
+          <div className="md:w-2/3">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{activity.placeName || `Activity ${index + 1}`}</h3>
+                <p className="text-gray-700 mb-3">{activity.placeDetails || 'No details available'}</p>
+              </div>
+              {activity.rating && (
+                <div className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span className="text-sm font-semibold">{activity.rating}/5</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+              {activity.ticketPricing && (
+                <div className="flex items-center text-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-gray-700">{activity.ticketPricing}</span>
+                </div>
+              )}
+              
+              {activity.timeTravel && (
+                <div className="flex items-center text-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-gray-700">{activity.timeTravel}</span>
+                </div>
+              )}
+              
+              {activity.bestTimeToVisit && (
+                <div className="flex items-center text-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <span className="text-gray-700">{activity.bestTimeToVisit}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render itinerary for a trip
+  const renderItinerary = (trip) => {
+    if (!trip || !trip.tripData) return null;
+    
+    const parsedData = parseTripData(trip.tripData);
+    if (!parsedData) return null;
+    
+    return (
+      <div className="bg-white rounded-xl shadow-md p-6 mb-8 mt-4">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">🗓️ Daily Itinerary</h2>
+        
+        {/* Handle different itinerary structures */}
+        {parsedData?.itinerary ? (
+          // If itinerary is an array
+          Array.isArray(parsedData.itinerary) ? (
+            parsedData.itinerary.map((day, index) => {
+              return renderDayPlan(day, index + 1);
+            })
+          ) : (
+            // If itinerary is an object with day keys
+            Object.entries(parsedData.itinerary)
+              .sort(([a], [b]) => {
+                // Sort day keys numerically (day1, day2, day10, etc.)
+                const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+                const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+                return numA - numB;
+              })
+              .map(([dayKey, dayData], index) => {
+                // Use the numeric part of the key for day numbering, fallback to index+1
+                const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
+                return renderDayPlan(dayData, dayNumber);
+              })
+          )
+        ) : (
+          // Handle day1, day2, etc. format at top level
+          Object.keys(parsedData || {})
+            .filter(key => key.toLowerCase().startsWith('day'))
+            .sort((a, b) => {
+              // Sort day keys numerically (day1, day2, day10, etc.)
+              const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+              const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+              return numA - numB;
+            })
+            .map((dayKey, index) => {
+              const dayData = parsedData[dayKey];
+              // Use the numeric part of the key for day numbering, fallback to index+1
+              const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
+              return renderDayPlan(dayData, dayNumber);
+            })
+        )}
+      </div>
+    );
   };
 
   return (
@@ -135,84 +434,108 @@ const TripHistory = () => {
 
         {/* Trip Cards Grid */}
         {filteredTrips && filteredTrips.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-8">
             {filteredTrips.map((trip, index) => (
-              <motion.div
-                key={trip._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ y: -10, rotateY: 5 }}
-                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden cursor-pointer transform-gpu border border-white/50"
-                onClick={() => navigate(`/trip-details/${trip._id}`)}
-              >
-                <div className="relative h-48 bg-gradient-to-r from-blue-400 to-purple-500">
-                  <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
-                    <h3 className="text-2xl font-bold text-white text-center px-4">
-                      {trip.userSelection.location.label}
-                    </h3>
+              <div key={trip._id} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/50">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -5 }}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/trip-details/${trip._id}`)}
+                >
+                  <div className="relative h-48 bg-gradient-to-r from-blue-400 to-purple-500">
+                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                      <h3 className="text-2xl font-bold text-white text-center px-4">
+                        {trip.userSelection.location.label}
+                      </h3>
+                    </div>
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold text-gray-800 shadow">
+                      {trip.userSelection.days} Days
+                    </div>
                   </div>
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold text-gray-800 shadow">
-                    {trip.userSelection.days} Days
+                  
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <p className="text-gray-600 text-sm">Created on</p>
+                        <p className="font-semibold">{formatDate(trip.createdAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-600 text-sm">Budget</p>
+                        <p className="font-semibold">{getBudgetLabel(trip.userSelection.budget)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <p className="text-gray-600 text-sm">Travelers</p>
+                        <p className="font-semibold">{getTravelersLabel(trip.userSelection.travelers)}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
+                          <span className="text-blue-600 font-bold text-sm">
+                            {trip.userSelection.days}
+                          </span>
+                        </div>
+                        <span className="text-gray-600">Days</span>
+                      </div>
+                    </div>
                   </div>
+                </motion.div>
+                
+                {/* Expandable Itinerary Section */}
+                <div className="px-6 pb-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleItinerary(trip._id);
+                    }}
+                    className="flex items-center text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {expandedTrips[trip._id] ? 'Hide Itinerary' : 'Show Itinerary'}
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      className={`h-5 w-5 ml-1 transition-transform ${expandedTrips[trip._id] ? 'rotate-180' : ''}`} 
+                      viewBox="0 0 20 20" 
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {expandedTrips[trip._id] && renderItinerary(trip)}
                 </div>
                 
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="text-gray-600 text-sm">Created on</p>
-                      <p className="font-semibold">{formatDate(trip.createdAt)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-gray-600 text-sm">Budget</p>
-                      <p className="font-semibold">{getBudgetLabel(trip.userSelection.budget)}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <p className="text-gray-600 text-sm">Travelers</p>
-                      <p className="font-semibold">{getTravelersLabel(trip.userSelection.travelers)}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center">
-                        <span className="text-blue-600 font-bold text-sm">
-                          {trip.userSelection.days}
-                        </span>
-                      </div>
-                      <span className="text-gray-600">Days</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/trip-details/${trip._id}`);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 font-medium flex items-center"
-                    >
-                      View Details
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSharingTripId(trip._id === sharingTripId ? null : trip._id);
-                        generateShareLink(trip._id);
-                      }}
-                      className="text-purple-600 hover:text-purple-800 font-medium flex items-center"
-                    >
-                      Share
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                    </button>
-                  </div>
+                <div className="p-6 pt-0 border-t border-gray-100 flex justify-between">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/trip-details/${trip._id}`);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                  >
+                    View Details
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSharingTripId(trip._id === sharingTripId ? null : trip._id);
+                      generateShareLink(trip._id);
+                    }}
+                    className="text-purple-600 hover:text-purple-800 font-medium flex items-center"
+                  >
+                    Share
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                  </button>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         ) : (

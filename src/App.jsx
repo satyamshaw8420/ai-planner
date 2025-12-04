@@ -7,9 +7,9 @@ import PageTransition from './components/custom/PageTransition'
 
 function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-linear-to-br from-blue-50/30 via-white to-purple-50/30">
+    <div className="min-h-screen flex flex-col bg-linear-to-br from-blue-50/30 via-white to-purple-50/30 w-full">
       <PremiumHeader />
-      <main className="grow">
+      <main className="grow w-full">
         <PageTransition>
           <div className="w-full h-full">
             <Outlet />

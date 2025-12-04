@@ -19,6 +19,7 @@ export const saveTrip = mutation({
       userEmail: v.string(),
       timestamp: v.number(),
       userAgent: v.string(),
+      fullname: v.optional(v.string())
     })),
     createdAt: v.number(),
   },

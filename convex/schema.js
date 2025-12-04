@@ -19,6 +19,7 @@ export default defineSchema({
       userEmail: v.string(),
       timestamp: v.number(),
       userAgent: v.string(),
+      fullname: v.optional(v.string())
     })),
     createdAt: v.number(),
     shareId: v.optional(v.string()),

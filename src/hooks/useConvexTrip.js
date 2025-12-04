@@ -1,34 +1,58 @@
-import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { useMutation } from "convex/react";
+import { useState } from "react";
 
 export const useSaveTrip = () => {
+  const [isLoading, setIsLoading] = useState(false);
   const saveTrip = useMutation(api.trips.saveTrip);
-  
-  const saveTripToConvex = async (tripData, formData, userEmail, userId) => {
+
+  const saveTripToConvex = async ({
+    userSelection: formData,
+    tripData,
+    userEmail,
+    userId,
+    userInformation
+  }) => {
     try {
+      console.log("🚀 Initiating trip save to Convex database...");
+      console.log("Received formData:", formData);
+      
+      // Validate required fields
+      if (!formData) {
+        throw new Error("Form data is required");
+      }
+      
+      // Ensure location object exists with proper structure
+      const locationData = (formData && formData.location) ? formData.location : { label: '' };
+      
       // Capture comprehensive user information
-      const userInformation = {
+      const userInfo = {
         userId: userId || 'anonymous',
         userEmail: userEmail || 'unknown',
         timestamp: Date.now(),
         userAgent: navigator.userAgent,
         // Add any additional user information here
       };
-      
+
       // Log the data being sent to Convex
       const tripPayload = {
         userSelection: {
           location: {
-            label: formData.location?.label || ''
+            label: (locationData && locationData.label) ? locationData.label : (formData && formData.destination) ? formData.destination : ''
           },
-          travelers: formData.travelers,
-          days: formData.days,
-          budget: formData.budget
+          travelers: (formData && formData.travelers) ? formData.travelers.id : null,
+          days: formData && formData.days ? formData.days : '',
+          budget: (formData && formData.budget) ? formData.budget.id : null
         },
         tripData: tripData,
         userEmail: userEmail,
         userId: userId,
-        userInformation: userInformation, // Store comprehensive user info
+        userInformation: {
+          userId: (userInformation && userInformation.userId) || userId || 'anonymous',
+          userEmail: (userInformation && userInformation.userEmail) || userEmail || 'unknown',
+          timestamp: (userInformation && userInformation.timestamp) || Date.now(),
+          userAgent: (userInformation && userInformation.userAgent) || navigator.userAgent
+        },
         createdAt: Date.now(),
       };
       

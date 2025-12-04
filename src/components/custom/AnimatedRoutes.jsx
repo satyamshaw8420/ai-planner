@@ -73,7 +73,7 @@ const AnimatedRoutes = ({ children }) => {
           stiffness: 300,
           duration: 0.3 
         }}
-        className="w-full h-full"
+        className="w-full h-full min-h-screen"
       >
         {children}
       </motion.div>

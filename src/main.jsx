@@ -16,9 +16,9 @@ import WeatherIntegration from './components/custom/WeatherIntegration.jsx'
 import SocialFeatures from './components/custom/SocialFeatures.jsx'
 import DataVerification from './components/custom/DataVerification.jsx'
 import ViewTrip from './view-trip/index.jsx'
+import FlightBookingPage from './flight-booking/index.jsx'
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 const router = createBrowserRouter([
@@ -73,14 +73,21 @@ const router = createBrowserRouter([
       {
         path: '/create-trip',
         element: <CreateTrip />
+      },
+      {
+        path: '/flight-booking',
+        element: <FlightBookingPage />
       }
     ]
   }
 ])
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID}>
+    <GoogleOAuthProvider 
+      clientId={import.meta.env.VITE_GOOGLE_AUTH_CLIENT_ID}
+      onScriptLoadError={() => console.error('Failed to load Google OAuth script')}
+      onScriptLoadSuccess={() => console.log('Google OAuth script loaded successfully')}
+    >
       <ConvexProvider client={convex}>
         <RouterProvider router={router} />
       </ConvexProvider>

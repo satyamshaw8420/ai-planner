@@ -97,10 +97,10 @@ const BlueOrangeHero = () => {
   };
 
   return (
-    <div className="relative overflow-hidden animate-fade-down animate-duration-500">
+    <div className="relative overflow-hidden animate-fade-down animate-duration-500 w-full">
       {/* Background with carousel and zoom-in effect only */}
       <div 
-        className="relative bg-cover bg-center h-[600px] flex items-center transition-all duration-1000 ease-in-out"
+        className="relative bg-cover bg-center h-[600px] flex items-center transition-all duration-1000 ease-in-out w-full"
         style={{
           backgroundImage: `url('${backgroundImages[currentBgIndex].url}')`,
           transform: 'scale(1.1)',
@@ -110,7 +110,7 @@ const BlueOrangeHero = () => {
         <div className="absolute inset-0 bg-black/40"></div>
         
         {/* Content */}
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 w-full">
           <div className="text-center">
             {!animationComplete ? (
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 flex flex-wrap justify-center">
@@ -128,9 +128,11 @@ const BlueOrangeHero = () => {
                 ))}
               </h1>
             ) : (
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 animate-fade-in-smooth">
-                Travel Together. Dream Bigger.
-              </h1>
+              <div>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 animate-fade-in-smooth">
+                  Travel Together. Dream Bigger.
+                </h1>
+              </div>
             )}
             <p className="text-xl text-gray-100 mb-10 max-w-2xl mx-auto animate-fade-in-up-smooth">
               Effortless travel planning with AI-powered itineraries, real-time collaboration, and personalized recommendations.
@@ -146,7 +148,7 @@ const BlueOrangeHero = () => {
       </div>
 
       {/* Feature Carousel */}
-      <div className="py-16 bg-white">
+      <div className="py-16 bg-white w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Powerful Travel Features</h2>
