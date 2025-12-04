@@ -67,7 +67,7 @@ const PremiumHeader = () => {
                   navigate(item.path);
                   setIsMenuOpen(false);
                 }}
-                className={`text-white !text-white font-medium hover:text-blue-400 hover:underline transition-all duration-300 ease-in-out focus:outline-none focus:ring-0 focus:border-0 ${
+                className={`text-white !text-white font-medium hover:text-blue-400 hover:underline transition-all duration-300 ease-in-out focus:outline-none focus:ring-0 focus:border-0 whitespace-nowrap ${
                   location.pathname === item.path 
                     ? 'font-medium text-blue-400 underline' 
                     : ''

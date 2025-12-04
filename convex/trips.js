@@ -7,9 +7,12 @@ export const saveTrip = mutation({
       location: v.object({
         label: v.string()
       }),
-      travelers: v.union(v.number(), v.null()),
+      travelers: v.optional(v.union(v.number(), v.null())),
       days: v.string(),
-      budget: v.union(v.number(), v.null())
+      budget: v.union(v.number(), v.null()),
+      // New fields
+      numberOfMembers: v.optional(v.union(v.number(), v.null())),
+      startDate: v.optional(v.union(v.string(), v.null())),
     }),
     tripData: v.any(),
     userEmail: v.optional(v.string()),
@@ -19,7 +22,10 @@ export const saveTrip = mutation({
       userEmail: v.string(),
       timestamp: v.number(),
       userAgent: v.string(),
-      fullname: v.optional(v.string())
+      fullname: v.optional(v.string()),
+      // Add the new fields here as well
+      numberOfMembers: v.optional(v.union(v.number(), v.null())),
+      startDate: v.optional(v.union(v.string(), v.null()))
     })),
     createdAt: v.number(),
   },

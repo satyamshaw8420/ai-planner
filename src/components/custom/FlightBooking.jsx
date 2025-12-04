@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { searchFlights } from '@/service/flightApi';
 import { toast } from 'sonner';
 
@@ -17,6 +17,45 @@ const FlightBooking = () => {
   const [flights, setFlights] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [planeImages, setPlaneImages] = useState([]);
+  const [featuredPlanes, setFeaturedPlanes] = useState([]);
+
+  // Fetch plane images from Unsplash
+  useEffect(() => {
+    const fetchPlaneImages = async () => {
+      try {
+        // Using Unsplash API with a search query for "airplane"
+        // Note: In a production app, you would use your own API key
+        // For demo purposes, we're using a placeholder that will show fallback images
+        // To use real Unsplash images, register for a free API key at https://unsplash.com/developers
+        // and replace 'YOUR_UNSPLASH_ACCESS_KEY' with your actual key
+        const response = await fetch(
+          'https://api.unsplash.com/search/photos?query=airplane&per_page=20&client_id=YOUR_UNSPLASH_ACCESS_KEY&orientation=landscape'
+        );
+        const data = await response.json();
+        
+        if (data.results && data.results.length > 0) {
+          // Extract image URLs from the response
+          const imageUrls = data.results.map(photo => ({
+            id: photo.id,
+            url: photo.urls.regular,
+            thumb: photo.urls.thumb,
+            small: photo.urls.small,
+            alt: photo.alt_description || 'Airplane'
+          }));
+          
+          setPlaneImages(imageUrls);
+          // Set first 5 images as featured planes
+          setFeaturedPlanes(imageUrls.slice(0, 5));
+        }
+      } catch (error) {
+        console.error('Error fetching plane images:', error);
+        // Fallback to default if API fails
+      }
+    };
+
+    fetchPlaneImages();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -86,6 +125,24 @@ const FlightBooking = () => {
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">✈️ Flight Booking</h2>
+        
+        {/* Featured Planes Carousel */}
+        {featuredPlanes.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-700 mb-3">Popular Aircraft</h3>
+            <div className="flex space-x-4 overflow-x-auto pb-2">
+              {featuredPlanes.map(plane => (
+                <div key={plane.id} className="flex-shrink-0 w-32 h-32 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
+                  <img 
+                    src={plane.small} 
+                    alt={plane.alt} 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {/* Search Form */}
         <form onSubmit={handleSearch} className="mb-8">
@@ -225,7 +282,7 @@ const FlightBooking = () => {
           <div>
             <h3 className="text-xl font-bold text-gray-800 mb-4">Available Flights</h3>
             <div className="space-y-4">
-              {flights.map((flight) => (
+              {flights.map((flight, index) => (
                 <div 
                   key={flight.id} 
                   className={`border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer ${
@@ -238,7 +295,21 @@ const FlightBooking = () => {
                   <div className="flex flex-col md:flex-row md:items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center mb-2">
-                        <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-16" />
+                        {/* Display plane image instead of placeholder */}
+                        {planeImages && planeImages.length > 0 ? (
+                          <div className="relative">
+                            <img 
+                              src={planeImages[index % planeImages.length].small} 
+                              alt="Airplane" 
+                              className="w-16 h-16 object-contain"
+                            />
+                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+                              ✈️
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-16" />
+                        )}
                         <div className="ml-4">
                           <h4 className="font-bold text-lg">{flight.airline}</h4>
                           <p className="text-gray-600">{flight.flightNumber}</p>
@@ -317,6 +388,21 @@ const FlightBooking = () => {
             <div className="text-5xl mb-4">✈️</div>
             <h3 className="text-xl font-medium text-gray-900 mb-2">Search for Flights</h3>
             <p className="text-gray-500">Enter your travel details above to find available flights</p>
+            
+            {/* Display some plane images as decoration */}
+            {planeImages.length > 0 && (
+              <div className="mt-8 flex justify-center space-x-4">
+                {planeImages.slice(0, 4).map((plane, index) => (
+                  <div key={plane.id} className="w-16 h-16 opacity-70 hover:opacity-100 transition-opacity duration-300">
+                    <img 
+                      src={plane.thumb} 
+                      alt={plane.alt} 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -34,6 +34,19 @@ export const useSaveTrip = () => {
         // Add any additional user information here
       };
 
+      // Build userInformation object carefully to avoid validation errors
+      const userInformationPayload = {
+        userId: (userInformation && userInformation.userId) || userId || 'anonymous',
+        userEmail: (userInformation && userInformation.userEmail) || userEmail || 'unknown',
+        timestamp: (userInformation && userInformation.timestamp) || Date.now(),
+        userAgent: (userInformation && userInformation.userAgent) || navigator.userAgent,
+      };
+      
+      // Only add fullname if it exists and is not null/undefined/empty
+      if (userInformation && userInformation.fullname && userInformation.fullname.trim() !== '') {
+        userInformationPayload.fullname = userInformation.fullname;
+      }
+
       // Log the data being sent to Convex
       const tripPayload = {
         userSelection: {
@@ -42,17 +55,15 @@ export const useSaveTrip = () => {
           },
           travelers: (formData && formData.travelers) ? formData.travelers.id : null,
           days: formData && formData.days ? formData.days : '',
-          budget: (formData && formData.budget) ? formData.budget.id : null
+          budget: (formData && formData.budget) ? formData.budget.id : null,
+          // New fields in the correct location
+          numberOfMembers: (formData && formData.numberOfMembers) ? parseInt(formData.numberOfMembers) : null,
+          startDate: (formData && formData.startDate) ? formData.startDate : null
         },
         tripData: tripData,
         userEmail: userEmail,
         userId: userId,
-        userInformation: {
-          userId: (userInformation && userInformation.userId) || userId || 'anonymous',
-          userEmail: (userInformation && userInformation.userEmail) || userEmail || 'unknown',
-          timestamp: (userInformation && userInformation.timestamp) || Date.now(),
-          userAgent: (userInformation && userInformation.userAgent) || navigator.userAgent
-        },
+        userInformation: userInformationPayload,
         createdAt: Date.now(),
       };
       

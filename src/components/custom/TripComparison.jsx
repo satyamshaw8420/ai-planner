@@ -41,27 +41,42 @@ const TripComparison = () => {
 
   // Prepare comparison data when selected trips change
   useEffect(() => {
-    if (selectedTrips.length >= 2 && allTrips) {
+    if (selectedTrips.length >= 2 && allTrips.length > 0) {
       const tripsToCompare = allTrips.filter(trip => 
         selectedTrips.includes(trip._id)
       );
 
-      // Extract comparison metrics
-      const destinations = tripsToCompare.map(trip => trip.userSelection.location.label);
-      const days = tripsToCompare.map(trip => parseInt(trip.userSelection.days));
+      // Extract comparison metrics with defensive checks
+      const destinations = tripsToCompare.map(trip => {
+        if (!trip || !trip.userSelection || !trip.userSelection.location) return 'Unknown';
+        return trip.userSelection.location.label || 'Unknown';
+      });
+      
+      const days = tripsToCompare.map(trip => {
+        if (!trip || !trip.userSelection || !trip.userSelection.days) return 0;
+        return parseInt(trip.userSelection.days) || 0;
+      });
+      
       const budgets = tripsToCompare.map(trip => {
+        if (!trip || !trip.userSelection || !trip.userSelection.budget) return 'Unknown';
         const budgetLabels = ['Cheap', 'Moderate', 'Luxury'];
         return budgetLabels[trip.userSelection.budget - 1] || 'Unknown';
       });
+      
       const travelers = tripsToCompare.map(trip => {
+        if (!trip || !trip.userSelection || !trip.userSelection.travelers) return 'Unknown';
         const travelerLabels = ['Just Me', 'A Couple', 'Family', 'Friends'];
         return travelerLabels[trip.userSelection.travelers - 1] || 'Unknown';
       });
 
       // Calculate approximate costs (this is simulated - in reality, you'd extract from tripData)
       const costs = days.map((day, index) => {
-        const budgetMultiplier = tripsToCompare[index].userSelection.budget;
-        const travelerCount = tripsToCompare[index].userSelection.travelers;
+        if (index >= tripsToCompare.length) return 0;
+        const trip = tripsToCompare[index];
+        if (!trip || !trip.userSelection) return 0;
+        
+        const budgetMultiplier = trip.userSelection.budget || 1;
+        const travelerCount = trip.userSelection.travelers || 1;
         // Simplified cost calculation
         return day * (budgetMultiplier * 100) * (travelerCount || 1);
       });
@@ -164,7 +179,7 @@ const TripComparison = () => {
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Select Trips to Compare</h2>
           
-          {allTrips && allTrips.length > 0 ? (
+          {Array.isArray(allTrips) && allTrips.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {allTrips.map((trip) => (
                 <div 

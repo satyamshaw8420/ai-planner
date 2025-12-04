@@ -167,12 +167,15 @@ const GlobeVisualization = () => {
   
   // Extract unique destinations from trips
   useEffect(() => {
-    if (allTrips && allTrips.length > 0) {
+    if (allTrips.length > 0) {
       // Create a map to count trips per destination
       const destinationMap = {};
       
       allTrips.forEach(trip => {
-        const location = trip.userSelection?.location?.label;
+        // Defensive check for trip structure
+        if (!trip || !trip.userSelection) return;
+        
+        const location = trip.userSelection.location?.label;
         if (location) {
           if (!destinationMap[location]) {
             // Get coordinates for the location

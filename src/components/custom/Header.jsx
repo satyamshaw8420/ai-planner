@@ -34,58 +34,58 @@ const Header = () => {
     <div className='p-3 shadow-sm flex justify-between items-center px-5 w-full'>
       <div className="flex items-center gap-8 ml-0">
         <img src="/logo.svg" alt="TravelEase Logo" className="h-8 w-auto" />
-        <div className="hidden md:flex gap-6">
+        <div className="hidden md:flex gap-4"> {/* Reduced gap from gap-6 to gap-4 */}
           <button 
             onClick={() => navigate('/')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Home
           </button>
           <button 
             onClick={() => navigate('/create-trip')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Create Trip
           </button>
           <button 
             onClick={() => navigate('/trip-history')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             My Trips
           </button>
           <button 
             onClick={() => navigate('/globe')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Destinations
           </button>
           <button 
             onClick={() => navigate('/compare')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Compare
           </button>
           <button 
             onClick={() => navigate('/offline')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Offline
           </button>
           <button 
             onClick={() => navigate('/weather')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Weather
           </button>
           <button 
             onClick={() => navigate('/social')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Community
           </button>
           <button 
             onClick={() => navigate('/verify-data')} 
-            className="text-gray-700 hover:text-blue-600 font-medium"
+            className="text-gray-700 hover:text-blue-600 font-medium whitespace-nowrap"
           >
             Verify Data
           </button>

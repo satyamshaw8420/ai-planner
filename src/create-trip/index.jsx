@@ -16,7 +16,10 @@ function CreateTrip() {
     location: { label: '' },
     travelers: null,
     days: '',
-    budget: null
+    budget: null,
+    // New fields
+    numberOfMembers: '',
+    startDate: ''
   });
   
   // Convex mutation for saving trips
@@ -27,6 +30,7 @@ function CreateTrip() {
   const [loading, setLoading] = useState(false)
   const [isCreatingTrip, setIsCreatingTrip] = useState(false)
   const inputRef = useRef(null)
+  const debounceTimer = useRef(null);
 
   // Listen for the custom event from Header to show Google Sign-In
   useEffect(() => {
@@ -38,75 +42,36 @@ function CreateTrip() {
 
     return () => {
       window.removeEventListener('open-google-signin', handleOpenGoogleSignin);
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
     };
   }, []);
 
-  const handleLogout = () => {
-    // Remove user data from localStorage
-    localStorage.removeItem('user');
-    // Dispatch event to notify other components
-    window.dispatchEvent(new CustomEvent('user-status-changed'));
-    // Optionally, you can add a toast notification
-    toast.success("You have been logged out successfully");
-  };
-  
-  // Debounce timer ref
-  const debounceTimer = useRef(null)
-
-  const fetchSuggestions = async (searchQuery) => {
-    console.log('Fetching suggestions for:', searchQuery);
-    if (!searchQuery.trim()) {
-      setSuggestions([])
-      setShowSuggestions(false)
-      return
+  // Fetch location suggestions from Mapbox API
+  const fetchSuggestions = async (query) => {
+    if (!query.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
 
-    setLoading(true)
     try {
-      // Using Photon API (free and open-source, faster alternative to Nominatim)
       const response = await fetch(
-        `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&limit=5`,
-        {
-          headers: {
-            'User-Agent': 'TravelEase/1.0 (educational project)',
-            'Accept': 'application/json',
-          }
-        }
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        // Photon returns features array, we need to map it to our expected format
-        const suggestions = data.features || []
-        // Log the structure of the location data to console (similar to YouTube tutorial)
-        console.log('Location suggestions:', {
-          location: suggestions.map(item => ({
-            label: item.properties.name,
-            value: {
-              description: item.properties.name,
-              place_id: item.properties.osm_id,
-              // ... other properties
-            }
-          }))
-        })
-        setSuggestions(suggestions)
-        setShowSuggestions(true)
-      } else {
-        console.error('API request failed with status:', response.status);
-        setSuggestions([])
-        setShowSuggestions(false)
-      }
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=pk.eyJ1Ijoic2h1YmgxMDA3IiwiYSI6ImNtMWNybmJwcjAwN2kycHBvdzZ0MW10aWsifQ.0G-8C5KXgGsHMA-MOrgRew&types=place,locality,address&limit=5`
+      );
+      const data = await response.json();
+      setSuggestions(data.features || []);
+      setShowSuggestions(true);
     } catch (error) {
-      console.error('Error fetching location suggestions:', error)
-      setSuggestions([])
-      setShowSuggestions(false)
-    } finally {
-      setLoading(false)
+      console.error('Error fetching suggestions:', error);
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
-  }
+  };
 
   const handleInputChange = (name, value) => {
-    // Add validation for days field - limit to 5 or less
+    // Special validation for days field
     if (name === 'days') {
       const daysValue = parseInt(value);
       if (!isNaN(daysValue) && daysValue > 13) {
@@ -167,6 +132,23 @@ function CreateTrip() {
       return;
     }
     
+    // Validate number of members
+    if (!formData.numberOfMembers) {
+      toast.error("Please enter the number of members");
+      return;
+    }
+    
+    const membersNum = parseInt(formData.numberOfMembers);
+    if (isNaN(membersNum) || membersNum <= 0) {
+      toast.error("Please enter a valid number of members");
+      return;
+    }
+    
+    if (membersNum > 20) {
+      toast.error("Number of members cannot exceed 20");
+      return;
+    }
+    
     if (!formData.days) {
       toast.error("Please enter number of days");
       return;
@@ -174,6 +156,21 @@ function CreateTrip() {
     
     if (!formData.budget) {
       toast.error("Please select a budget option");
+      return;
+    }
+    
+    // Validate start date
+    if (!formData.startDate) {
+      toast.error("Please select a start date");
+      return;
+    }
+    
+    const selectedDate = new Date(formData.startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time part for comparison
+    
+    if (selectedDate < today) {
+      toast.error("Start date cannot be in the past");
       return;
     }
     
@@ -197,7 +194,7 @@ function CreateTrip() {
       const FINAL_PROMPT = AI_PROMPT
         .replace('{location}', formData.location?.label || '')
         .replace('{totalDays}', formData.days)
-        .replace('{traveler}', formData.travelers.title)
+        .replace('{traveler}', `${formData.numberOfMembers} ${formData.numberOfMembers == 1 ? 'person' : 'people'}`)
         .replace('{budget}', formData.budget.title)
         .replace('{totalDays}', formData.days) // Duplicate replacement for safety
       
@@ -275,9 +272,9 @@ function CreateTrip() {
   return (
     <div className="mb-10">
       <h2 className="font-bold text-3xl text-center">Tell us your travel preferences 🤖🌴</h2>
-      <p className="mt-3 text-gray-500 text-center">Just provide some basic information, and our trip planner will generate a customized itinerary for you!</p>
+      <p className="mt-2 text-gray-500 text-center">Just provide some basic information, and our trip planner will generate a customized itinerary for you!</p>
 
-      <div className="mt-10 md:mt-20 shadow-md p-6 lg:p-10 rounded-xl max-w-4xl mx-auto bg-white">
+      <div className="mt-6 md:mt-8 shadow-md p-6 lg:p-8 rounded-xl max-w-4xl mx-auto bg-white">
         {/* Destination Field */}
         <div className="mb-8">
           <h2 className="text-xl my-2 font-medium">📍 What is your destination of choice?</h2>
@@ -300,23 +297,17 @@ function CreateTrip() {
                   const country = suggestion.properties.country || '';
                   
                   // Create a display label
-                  let displayLabel = name;
-                  if (city && city !== name) {
-                    displayLabel += `, ${city}`;
-                  }
-                  if (country && country !== city && country !== name) {
-                    displayLabel += `, ${country}`;
-                  }
+                  const displayLabel = [name, city, country].filter(Boolean).join(', ');
                   
                   return (
                     <div 
-                      key={`${suggestion.properties.osm_id || index}-${displayLabel}`}
-                      className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      key={index}
                       onClick={() => handleSuggestionClick(suggestion)}
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
                     >
                       <div className="font-medium">{displayLabel}</div>
-                      {loading && index === 0 && (
-                        <div className="text-xs text-gray-500">Searching...</div>
+                      {suggestion.place_type && (
+                        <div className="text-xs text-gray-500 capitalize">{suggestion.place_type.join(', ')}</div>
                       )}
                     </div>
                   );
@@ -326,10 +317,10 @@ function CreateTrip() {
           </div>
         </div>
 
-        {/* Travelers Field */}
+        {/* Travelers Selection Field */}
         <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">👥 Choose your travel companions</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 mt-5">
+          <h2 className="text-xl my-2 font-medium">👥 Who are you traveling with?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
             {SelectTravelesList.map((item, index) => (
               <div 
                 key={index}
@@ -348,9 +339,36 @@ function CreateTrip() {
           </div>
         </div>
 
+        {/* Number of Members Field */}
+        <div className="mb-8">
+          <h2 className="text-xl my-2 font-medium">👥 How many people are going on this trip?</h2>
+          <Input 
+            placeholder="Enter number of members (1-20)" 
+            type="number"
+            min="1"
+            max="20"
+            value={formData.numberOfMembers}
+            onChange={(e) => handleInputChange('numberOfMembers', e.target.value)}
+            className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-full md:w-1/3"
+          />
+          <p className="text-sm text-gray-500 mt-2">Maximum 20 members allowed</p>
+        </div>
+
+        {/* Start Date Field */}
+        <div className="mb-8">
+          <h2 className="text-xl my-2 font-medium">📅 When will your trip start?</h2>
+          <Input 
+            type="date"
+            value={formData.startDate}
+            onChange={(e) => handleInputChange('startDate', e.target.value)}
+            min={new Date().toISOString().split('T')[0]} // Today or future dates only
+            className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-full md:w-1/3"
+          />
+        </div>
+
         {/* Days Field */}
         <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">📅 How many days are you planning your trip?</h2>
+          <h2 className="text-xl my-2 font-medium">🗓️ How many days are you planning your trip?</h2>
           <Input 
             placeholder="Ex. 3" 
             type="number"
@@ -411,7 +429,7 @@ function CreateTrip() {
         </div>
 
         {/* Create Trip Button */}
-        <div className="mt-10">
+        <div className="mt-8">
           <Button 
             onClick={handleCreateTrip}
             disabled={isCreatingTrip}

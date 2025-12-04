@@ -16,38 +16,38 @@ const TripHistory = () => {
   const [expandedTrips, setExpandedTrips] = useState({}); // Track which trips have expanded itineraries
 
   useEffect(() => {
-    if (allTrips) {
-      let filtered = allTrips;
-      
-      // Apply search filter
-      if (searchTerm) {
-        filtered = filtered.filter(trip => 
-          trip.userSelection.location.label.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      
-      // Apply date filter
-      if (filter !== 'all') {
-        const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000;
-        
-        filtered = filtered.filter(trip => {
-          const tripDate = trip.createdAt;
-          switch (filter) {
-            case 'today':
-              return (now - tripDate) < oneDay;
-            case 'week':
-              return (now - tripDate) < 7 * oneDay;
-            case 'month':
-              return (now - tripDate) < 30 * oneDay;
-            default:
-              return true;
-          }
-        });
-      }
-      
-      setFilteredTrips(filtered);
+    let filtered = allTrips;
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(trip => 
+        trip && trip.userSelection && trip.userSelection.location && trip.userSelection.location.label &&
+        trip.userSelection.location.label.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
+    
+    // Apply date filter
+    if (filter !== 'all') {
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      
+      filtered = filtered.filter(trip => {
+        if (!trip || !trip.createdAt) return false;
+        const tripDate = trip.createdAt;
+        switch (filter) {
+          case 'today':
+            return (now - tripDate) < oneDay;
+          case 'week':
+            return (now - tripDate) < 7 * oneDay;
+          case 'month':
+            return (now - tripDate) < 30 * oneDay;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    setFilteredTrips(filtered);
   }, [allTrips, searchTerm, filter]);
 
   const formatDate = (timestamp) => {
@@ -369,7 +369,7 @@ const TripHistory = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Trip History</h1>
           <p className="text-gray-600">View and manage all your planned trips</p>
         </div>
@@ -433,7 +433,7 @@ const TripHistory = () => {
         </div>
 
         {/* Trip Cards Grid */}
-        {filteredTrips && filteredTrips.length > 0 ? (
+        {Array.isArray(filteredTrips) && filteredTrips.length > 0 ? (
           <div className="space-y-8">
             {filteredTrips.map((trip, index) => (
               <div key={trip._id} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/50">
