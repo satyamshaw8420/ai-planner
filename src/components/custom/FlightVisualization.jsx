@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
+
 const FlightVisualization = () => {
   const canvasRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
