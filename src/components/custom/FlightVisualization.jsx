@@ -1,44 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-
 const FlightVisualization = () => {
   const canvasRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [planeImages, setPlaneImages] = useState([]);
-  const [featuredPlane, setFeaturedPlane] = useState(null);
 
-  // Fetch plane images from Unsplash
-  useEffect(() => {
-    const fetchPlaneImages = async () => {
-      try {
-        // Using Unsplash API with a search query for "airplane"
-        // Note: In a production app, you would use your own API key
-        const response = await fetch(
-          'https://api.unsplash.com/search/photos?query=airplane&per_page=15&client_id=YOUR_UNSPLASH_ACCESS_KEY&orientation=landscape'
-        );
-        const data = await response.json();
-        
-        if (data.results && data.results.length > 0) {
-          // Extract image URLs from the response
-          const imageUrls = data.results.map(photo => ({
-            id: photo.id,
-            url: photo.urls.regular,
-            thumb: photo.urls.thumb,
-            alt: photo.alt_description || 'Airplane'
-          }));
-          
-          setPlaneImages(imageUrls);
-          // Set the first image as featured
-          setFeaturedPlane(imageUrls[0]);
-        }
-      } catch (error) {
-        console.error('Error fetching plane images:', error);
-        // Fallback to canvas drawn planes if API fails
-      }
-    };
 
-    fetchPlaneImages();
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -274,33 +240,9 @@ const FlightVisualization = () => {
         </div>
       </div>
       
-      {/* Enhanced Featured Plane Image - Larger and More Prominent */}
-      {featuredPlane && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden border-4 border-white shadow-2xl transition-all duration-700 hover:scale-110" 
-             style={{ animation: 'float 3s ease-in-out infinite' }}>
-          <img 
-            src={featuredPlane.url} 
-            alt={featuredPlane.alt} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-        </div>
-      )}
+
       
-      {/* Display fetched plane images */}
-      {planeImages.length > 0 && (
-        <div className="absolute bottom-4 right-4 flex space-x-2">
-          {planeImages.slice(0, 3).map((plane, index) => (
-            <div key={plane.id} className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md hover:scale-110 transition-transform duration-200">
-              <img 
-                src={plane.thumb} 
-                alt={plane.alt} 
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ))}
-        </div>
-      )}
+
       
       {/* Interactive elements */}
       <div className="absolute bottom-4 left-4">
@@ -317,19 +259,7 @@ const FlightVisualization = () => {
         </div>
       </div>
       
-      <style>{`
-        @keyframes float {
-          0% {
-            transform: translate(-50%, -50%) translateY(0px);
-          }
-          50% {
-            transform: translate(-50%, -50%) translateY(-10px);
-          }
-          100% {
-            transform: translate(-50%, -50%) translateY(0px);
-          }
-        }
-      `}</style>
+
     </div>
   );
 };

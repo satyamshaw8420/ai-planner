@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+// Import Unsplash service
+import { fetchUnsplashImages } from '@/service/unsplashService';
 
 const BlueOrangeHero = () => {
   const navigate = useNavigate();
@@ -7,8 +9,8 @@ const BlueOrangeHero = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [animationComplete, setAnimationComplete] = useState(false);
 
-  // Background images with zoom in effect only
-  const backgroundImages = [
+  // Background images state
+  const [backgroundImages, setBackgroundImages] = useState([
     {
       url: "https://images.unsplash.com/photo-1503220317375-aaad61436b1b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80"
     },
@@ -24,7 +26,7 @@ const BlueOrangeHero = () => {
     {
       url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80"
     }
-  ];
+  ]);
 
   const features = [
     {
@@ -60,6 +62,30 @@ const BlueOrangeHero = () => {
   ];
 
   const sloganText = "Travel Together. Dream Bigger.";
+
+  // Fetch dynamic background images from Unsplash on component mount
+  useEffect(() => {
+    const fetchBackgroundImages = async () => {
+      try {
+        // Fetch travel-related images from Unsplash
+        const images = await fetchUnsplashImages('travel destinations', 5);
+        
+        if (images && images.length > 0) {
+          // Transform the images to match our expected format
+          const formattedImages = images.map(img => ({
+            url: img.url
+          }));
+          
+          setBackgroundImages(formattedImages);
+        }
+      } catch (error) {
+        console.error('Error fetching background images from Unsplash:', error);
+        // Keep using the default images if API fails
+      }
+    };
+
+    fetchBackgroundImages();
+  }, []);
 
   // Auto-slide background every 5 seconds
   useEffect(() => {

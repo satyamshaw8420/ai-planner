@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { searchFlights } from '@/service/flightApi';
 import { toast } from 'sonner';
 
 const FlightBooking = () => {
@@ -8,29 +7,27 @@ const FlightBooking = () => {
     destination: '',
     departureDate: '',
     returnDate: '',
-    tripType: 'one-way', // one-way or round-trip
     adults: 1,
     children: 0,
-    cabinClass: 'economy'
+    cabinClass: 'economy',
+    tripType: 'one-way'
   });
   
   const [flights, setFlights] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [planeImages, setPlaneImages] = useState([]);
   const [featuredPlanes, setFeaturedPlanes] = useState([]);
+  const [loadingImages, setLoadingImages] = useState(true);
 
-  // Fetch plane images from Unsplash
+  // Fetch plane images from Unsplash on component mount
   useEffect(() => {
     const fetchPlaneImages = async () => {
       try {
-        // Using Unsplash API with a search query for "airplane"
-        // Note: In a production app, you would use your own API key
-        // For demo purposes, we're using a placeholder that will show fallback images
-        // To use real Unsplash images, register for a free API key at https://unsplash.com/developers
-        // and replace 'YOUR_UNSPLASH_ACCESS_KEY' with your actual key
+        setLoadingImages(true);
+        // Using your actual Unsplash API key
         const response = await fetch(
-          'https://api.unsplash.com/search/photos?query=airplane&per_page=20&client_id=YOUR_UNSPLASH_ACCESS_KEY&orientation=landscape'
+          `https://api.unsplash.com/search/photos?query=airplane&per_page=20&client_id=-SM0favOiLSKdFiD9cMc58LkLseqUZLcTeohV3qLW_w&orientation=landscape`
         );
         const data = await response.json();
         
@@ -51,6 +48,9 @@ const FlightBooking = () => {
       } catch (error) {
         console.error('Error fetching plane images:', error);
         // Fallback to default if API fails
+        toast.error('Failed to load airplane images');
+      } finally {
+        setLoadingImages(false);
       }
     };
 
@@ -75,27 +75,54 @@ const FlightBooking = () => {
     
     setLoading(true);
     try {
-      const result = await searchFlights(
-        searchParams.origin,
-        searchParams.destination,
-        searchParams.departureDate,
-        searchParams.returnDate,
-        searchParams.adults,
-        searchParams.children,
-        searchParams.cabinClass
-      );
+      // Mock flight search - in a real app, this would call an actual flight API
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      if (result && result.data && result.data.flights) {
-        // Handle our sample data format
-        setFlights(result.data.flights);
-        toast.success(`Found ${result.data.flights.length} flights`);
-      } else if (result && result.success && result.data && result.data.flights) {
-        setFlights(result.data.flights);
-        toast.success(`Found ${result.data.flights.length} flights`);
-      } else {
-        toast.error('No flights found for your search criteria');
-        setFlights([]);
-      }
+      // Sample flight data
+      const mockFlights = [
+        {
+          id: 1,
+          airline: 'Sky Airlines',
+          flightNumber: 'SA123',
+          departureTime: '08:30 AM',
+          arrivalTime: '11:45 AM',
+          duration: '3h 15m',
+          stops: 0,
+          price: {
+            currency: '$',
+            amount: 245.99
+          }
+        },
+        {
+          id: 2,
+          airline: 'Cloud Airways',
+          flightNumber: 'CA456',
+          departureTime: '02:15 PM',
+          arrivalTime: '05:30 PM',
+          duration: '3h 15m',
+          stops: 0,
+          price: {
+            currency: '$',
+            amount: 289.50
+          }
+        },
+        {
+          id: 3,
+          airline: 'Jet Stream',
+          flightNumber: 'JS789',
+          departureTime: '07:00 PM',
+          arrivalTime: '10:20 PM',
+          duration: '3h 20m',
+          stops: 0,
+          price: {
+            currency: '$',
+            amount: 199.99
+          }
+        }
+      ];
+      
+      setFlights(mockFlights);
+      toast.success(`Found ${mockFlights.length} flights`);
     } catch (error) {
       console.error('Error searching flights:', error);
       toast.error('Failed to search flights. Please try again.');
@@ -127,12 +154,21 @@ const FlightBooking = () => {
         <h2 className="text-2xl font-bold text-gray-800 mb-6">✈️ Flight Booking</h2>
         
         {/* Featured Planes Carousel */}
-        {featuredPlanes.length > 0 && (
+        {loadingImages ? (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-700 mb-3">Popular Aircraft</h3>
+            <div className="flex space-x-4 overflow-x-auto pb-2">
+              {[...Array(5)].map((_, index) => (
+                <div key={index} className="shrink-0 w-32 h-32 rounded-xl overflow-hidden shadow-md bg-gray-200 animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        ) : featuredPlanes.length > 0 && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-700 mb-3">Popular Aircraft</h3>
             <div className="flex space-x-4 overflow-x-auto pb-2">
               {featuredPlanes.map(plane => (
-                <div key={plane.id} className="flex-shrink-0 w-32 h-32 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div key={plane.id} className="shrink-0 w-32 h-32 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
                   <img 
                     src={plane.small} 
                     alt={plane.alt} 
@@ -234,7 +270,7 @@ const FlightBooking = () => {
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                {[0, 1, 2, 3, 4, 5].map(num => (
+                {[0, 1, 2, 3, 4, 5, 6].map(num => (
                   <option key={num} value={num}>{num}</option>
                 ))}
               </select>
@@ -249,9 +285,9 @@ const FlightBooking = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="economy">Economy</option>
-                <option value="premium_economy">Premium Economy</option>
+                <option value="premium">Premium Economy</option>
                 <option value="business">Business</option>
-                <option value="first">First</option>
+                <option value="first">First Class</option>
               </select>
             </div>
             
@@ -259,19 +295,9 @@ const FlightBooking = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 disabled:opacity-50"
               >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Searching...
-                  </>
-                ) : (
-                  'Search Flights'
-                )}
+                {loading ? 'Searching...' : 'Search Flights'}
               </button>
             </div>
           </div>
@@ -282,73 +308,56 @@ const FlightBooking = () => {
           <div>
             <h3 className="text-xl font-bold text-gray-800 mb-4">Available Flights</h3>
             <div className="space-y-4">
-              {flights.map((flight, index) => (
+              {flights.map(flight => (
                 <div 
-                  key={flight.id} 
-                  className={`border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer ${
+                  key={flight.id}
+                  className={`border rounded-xl p-4 cursor-pointer transition-all duration-300 ${
                     selectedFlight?.id === flight.id 
                       ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
                   }`}
                   onClick={() => handleSelectFlight(flight)}
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center mb-2">
-                        {/* Display plane image instead of placeholder */}
-                        {planeImages && planeImages.length > 0 ? (
+                        <span className="font-bold text-gray-900">{flight.airline}</span>
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-gray-600">{flight.flightNumber}</span>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        <div className="text-center">
+                          <div className="font-bold text-gray-900">{flight.departureTime}</div>
+                          <div className="text-sm text-gray-600">{searchParams.origin}</div>
+                        </div>
+                        
+                        <div className="flex-1 mx-4">
                           <div className="relative">
-                            <img 
-                              src={planeImages[index % planeImages.length].small} 
-                              alt="Airplane" 
-                              className="w-16 h-16 object-contain"
-                            />
-                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
-                              ✈️
+                            <div className="border-t border-gray-300 my-2"></div>
+                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-sm text-gray-600">
+                              {flight.duration}
                             </div>
                           </div>
-                        ) : (
-                          <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-16" />
-                        )}
-                        <div className="ml-4">
-                          <h4 className="font-bold text-lg">{flight.airline}</h4>
-                          <p className="text-gray-600">{flight.flightNumber}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mt-4">
-                        <div className="text-center">
-                          <p className="text-xl font-bold">{flight.departureTime}</p>
-                          <p className="text-gray-600">{searchParams.origin}</p>
-                        </div>
-                        
-                        <div className="flex-1 mx-4 relative">
-                          <div className="border-t border-gray-300 my-2"></div>
-                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-sm text-gray-600">
-                            {flight.duration}
+                          <div className="text-center text-sm text-gray-600">
+                            {flight.stops === 0 ? 'Nonstop' : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`}
                           </div>
-                          <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-3 h-3 rounded-full bg-gray-400"></div>
-                          <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 rounded-full bg-gray-400"></div>
                         </div>
                         
                         <div className="text-center">
-                          <p className="text-xl font-bold">{flight.arrivalTime}</p>
-                          <p className="text-gray-600">{searchParams.destination}</p>
+                          <div className="font-bold text-gray-900">{flight.arrivalTime}</div>
+                          <div className="text-sm text-gray-600">{searchParams.destination}</div>
                         </div>
-                      </div>
-                      
-                      <div className="mt-3 flex items-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {flight.stops === 0 ? 'Nonstop' : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`}
-                        </span>
-                        <span className="ml-2 text-sm text-gray-600">{flight.aircraft}</span>
                       </div>
                     </div>
                     
-                    <div className="mt-4 md:mt-0 md:ml-4 md:text-right">
-                      <p className="text-2xl font-bold text-blue-600">{flight.price.currency} {flight.price.amount}</p>
-                      <button 
-                        className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    <div className="mt-4 md:mt-0 md:text-right">
+                      <div className="text-2xl font-bold text-gray-900">
+                        {flight.price.currency}{flight.price.amount}
+                      </div>
+                      <div className="text-sm text-gray-600">per person</div>
+                      <button
+                        className="mt-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-1 px-3 rounded-lg transition-colors duration-300"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSelectFlight(flight);
@@ -367,40 +376,18 @@ const FlightBooking = () => {
               <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-bold text-lg">Selected Flight</h4>
-                    <p className="text-gray-700">{selectedFlight.airline} - {selectedFlight.flightNumber}</p>
-                    <p className="text-gray-600">{selectedFlight.departureTime} → {selectedFlight.arrivalTime}</p>
+                    <h4 className="font-bold text-gray-900">Selected Flight</h4>
+                    <p className="text-gray-700">
+                      {selectedFlight.airline} • {selectedFlight.flightNumber}
+                    </p>
                   </div>
-                  <button 
-                    className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+                  <button
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300"
                     onClick={handleBookFlight}
                   >
                     Book Now
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {flights.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <div className="text-5xl mb-4">✈️</div>
-            <h3 className="text-xl font-medium text-gray-900 mb-2">Search for Flights</h3>
-            <p className="text-gray-500">Enter your travel details above to find available flights</p>
-            
-            {/* Display some plane images as decoration */}
-            {planeImages.length > 0 && (
-              <div className="mt-8 flex justify-center space-x-4">
-                {planeImages.slice(0, 4).map((plane, index) => (
-                  <div key={plane.id} className="w-16 h-16 opacity-70 hover:opacity-100 transition-opacity duration-300">
-                    <img 
-                      src={plane.thumb} 
-                      alt={plane.alt} 
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                ))}
               </div>
             )}
           </div>

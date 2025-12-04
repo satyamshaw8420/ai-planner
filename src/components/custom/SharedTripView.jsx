@@ -3,10 +3,35 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { searchPlacePhotos } from '../../service/photoApi'; // Import our new photo API service
+// Import Unsplash service
+import { fetchDestinationImage } from '@/service/unsplashService';
 
 const SharedTripView = () => {
   const { shareId } = useParams();
   const tripData = useQuery(api.tripsQueries.getTripByShareId, { shareId: shareId });
+  
+  // State for destination image
+  const [destinationImage, setDestinationImage] = useState(null);
+  const [loadingImage, setLoadingImage] = useState(true);
+  
+  // Fetch destination image when trip data changes
+  useEffect(() => {
+    const fetchImage = async () => {
+      if (tripData && tripData.userSelection && tripData.userSelection.location && tripData.userSelection.location.label) {
+        setLoadingImage(true);
+        try {
+          const image = await fetchDestinationImage(tripData.userSelection.location.label);
+          setDestinationImage(image);
+        } catch (error) {
+          console.error('Error fetching destination image:', error);
+        } finally {
+          setLoadingImage(false);
+        }
+      }
+    };
+
+    fetchImage();
+  }, [tripData]);
   
   // Show loading state while fetching data
   if (tripData === undefined) {
@@ -150,7 +175,7 @@ const SharedTripView = () => {
                 <div key={index} className="bg-white rounded-2xl shadow-lg overflow-hidden">
                   <div className="h-48 overflow-hidden">
                     <img 
-                      src={hotel.hotelImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'} 
+                      src={hotel.hotelImageUrl || (destinationImage ? destinationImage.url : 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80')} 
                       alt={hotel.hotelName || 'Hotel Image'}
                       className="w-full h-full object-cover"
                       onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'; }}
@@ -197,7 +222,7 @@ const SharedTripView = () => {
                         <div key={placeIndex} className="flex flex-col md:flex-row gap-6 pb-6 border-b border-gray-100 last:border-b-0 last:pb-0">
                           <div className="md:w-1/3 h-48 rounded-xl overflow-hidden">
                             <img 
-                              src={place.placeImageUrl || 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'} 
+                              src={place.placeImageUrl || (destinationImage ? destinationImage.url : 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80')} 
                               alt={place.placeName || 'Place Image'}
                               className="w-full h-full object-cover"
                               onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'; }}

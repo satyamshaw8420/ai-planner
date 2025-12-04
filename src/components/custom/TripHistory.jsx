@@ -4,6 +4,10 @@ import { useFetchTrips } from '@/hooks/useFetchTrips';
 import { useShareTrip } from '@/hooks/useShareTrip';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+// Import Unsplash service
+import { fetchDestinationImage } from '@/service/unsplashService';
+// Import OpenStreetMap hotel service
+import { fetchTripHotels } from '@/service/hotelService';
 
 const TripHistory = () => {
   const navigate = useNavigate();
@@ -14,6 +18,67 @@ const TripHistory = () => {
   const [filter, setFilter] = useState('all');
   const [sharingTripId, setSharingTripId] = useState(null);
   const [expandedTrips, setExpandedTrips] = useState({}); // Track which trips have expanded itineraries
+  const [tripImages, setTripImages] = useState({}); // Store images for each trip
+  const [loadingImages, setLoadingImages] = useState(false); // Loading state for images
+  const [tripHotels, setTripHotels] = useState({}); // Store hotels for each trip
+  const [loadingHotels, setLoadingHotels] = useState(false); // Loading state for hotels
+
+  // Fetch images and hotels for trips
+  useEffect(() => {
+    const fetchTripData = async () => {
+      if (!Array.isArray(allTrips) || allTrips.length === 0) return;
+      
+      setLoadingImages(true);
+      setLoadingHotels(true);
+      const newImages = {};
+      const newHotels = {};
+      
+      try {
+        for (const trip of allTrips) {
+          if (trip && trip.userSelection && trip.userSelection.location && trip.userSelection.location.label) {
+            // Only fetch if we don't already have the image
+            if (!tripImages[trip._id]) {
+              try {
+                const image = await fetchDestinationImage(trip.userSelection.location.label);
+                if (image) {
+                  newImages[trip._id] = image;
+                }
+              } catch (error) {
+                console.error('Error fetching image for trip:', trip._id, error);
+              }
+            }
+            
+            // Only fetch if we don't already have the hotels
+            if (!tripHotels[trip._id]) {
+              try {
+                const hotels = await fetchTripHotels(trip.userSelection.location.label, 3);
+                if (hotels && hotels.length > 0) {
+                  newHotels[trip._id] = hotels;
+                }
+              } catch (error) {
+                console.error('Error fetching hotels for trip:', trip._id, error);
+              }
+            }
+          }
+        }
+        
+        if (Object.keys(newImages).length > 0) {
+          setTripImages(prev => ({ ...prev, ...newImages }));
+        }
+        
+        if (Object.keys(newHotels).length > 0) {
+          setTripHotels(prev => ({ ...prev, ...newHotels }));
+        }
+      } catch (error) {
+        console.error('Error fetching trip data:', error);
+      } finally {
+        setLoadingImages(false);
+        setLoadingHotels(false);
+      }
+    };
+
+    fetchTripData();
+  }, [allTrips]);
 
   useEffect(() => {
     let filtered = allTrips;
@@ -319,6 +384,9 @@ const TripHistory = () => {
     const parsedData = parseTripData(trip.tripData);
     if (!parsedData) return null;
     
+    // Get hotels for this trip
+    const hotels = tripHotels[trip._id] || [];
+    
     return (
       <div className="bg-white rounded-xl shadow-md p-6 mb-8 mt-4">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">🗓️ Daily Itinerary</h2>
@@ -361,6 +429,41 @@ const TripHistory = () => {
               const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
               return renderDayPlan(dayData, dayNumber);
             })
+        )}
+        
+        {/* Hotel Recommendations Section */}
+        {hotels.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+              <span className="mr-2">🏨</span> Hotel Recommendations
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {hotels.map((hotel, index) => (
+                <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-gray-800">{hotel.name}</h3>
+                    {hotel.stars && (
+                      <div className="flex items-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">
+                        {Array(parseInt(hotel.stars) || 0).fill('⭐')}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-gray-600 text-sm mb-2">{hotel.address}</p>
+                  <p className="text-gray-700 text-sm mb-3">{hotel.description}</p>
+                  <button 
+                    className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const searchUrl = `https://www.booking.com/searchresults.en-us.html?ss=${encodeURIComponent(hotel.name)}`;
+                      window.open(searchUrl, '_blank');
+                    }}
+                  >
+                    Check Rates
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );
@@ -445,7 +548,23 @@ const TripHistory = () => {
                   className="cursor-pointer"
                   onClick={() => navigate(`/trip-details/${trip._id}`)}
                 >
-                  <div className="relative h-48 bg-gradient-to-r from-blue-400 to-purple-500">
+                  {/* Trip Image Header */}
+                  <div className="relative h-48">
+                    {loadingImages ? (
+                      <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center">
+                        <div className="text-gray-500 text-sm">Loading...</div>
+                      </div>
+                    ) : tripImages[trip._id] ? (
+                      <img 
+                        src={tripImages[trip._id].url} 
+                        alt={tripImages[trip._id].alt || trip.userSelection.location.label}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
+                        <div className="text-white text-sm">No image</div>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
                       <h3 className="text-2xl font-bold text-white text-center px-4">
                         {trip.userSelection.location.label}

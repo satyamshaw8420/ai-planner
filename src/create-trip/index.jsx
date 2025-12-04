@@ -9,6 +9,10 @@ import { FcGoogle } from 'react-icons/fc'
 // Convex import
 import { useSaveTrip } from '@/hooks/useConvexTrip';
 import GoogleLoginModal from '../components/custom/GoogleLoginModal';
+// Import Unsplash service
+import { fetchDestinationImage } from '@/service/unsplashService';
+// Import OpenStreetMap hotel service
+import { fetchDestinationHotel } from '@/service/hotelService';
 
 function CreateTrip() {
   const navigate = useNavigate();
@@ -29,6 +33,10 @@ function CreateTrip() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isCreatingTrip, setIsCreatingTrip] = useState(false)
+  const [destinationImage, setDestinationImage] = useState(null); // Store destination image
+  const [loadingImage, setLoadingImage] = useState(false); // Loading state for image fetch
+  const [recommendedHotel, setRecommendedHotel] = useState(null); // Store recommended hotel
+  const [loadingHotel, setLoadingHotel] = useState(false); // Loading state for hotel fetch
   const inputRef = useRef(null)
   const debounceTimer = useRef(null);
 
@@ -47,6 +55,44 @@ function CreateTrip() {
       }
     };
   }, []);
+
+  // Fetch destination image and hotel recommendations when location changes
+  useEffect(() => {
+    const fetchData = async () => {
+      if (formData.location?.label) {
+        // Fetch image
+        setLoadingImage(true);
+        try {
+          const image = await fetchDestinationImage(formData.location.label);
+          setDestinationImage(image);
+        } catch (error) {
+          console.error('Error fetching destination image:', error);
+          setDestinationImage(null);
+        } finally {
+          setLoadingImage(false);
+        }
+        
+        // Fetch hotel recommendation
+        setLoadingHotel(true);
+        try {
+          const hotel = await fetchDestinationHotel(formData.location.label);
+          setRecommendedHotel(hotel);
+        } catch (error) {
+          console.error('Error fetching hotel recommendation:', error);
+          setRecommendedHotel(null);
+        } finally {
+          setLoadingHotel(false);
+        }
+      } else {
+        setDestinationImage(null);
+        setRecommendedHotel(null);
+      }
+    };
+
+    // Debounce the data fetch
+    const timer = setTimeout(fetchData, 500);
+    return () => clearTimeout(timer);
+  }, [formData.location?.label]);
 
   // Fetch location suggestions from Mapbox API
   const fetchSuggestions = async (query) => {
@@ -197,7 +243,7 @@ function CreateTrip() {
         .replace('{traveler}', `${formData.numberOfMembers} ${formData.numberOfMembers == 1 ? 'person' : 'people'}`)
         .replace('{budget}', formData.budget.title)
         .replace('{totalDays}', formData.days) // Duplicate replacement for safety
-      
+        
       console.log("Final Prompt:", FINAL_PROMPT);
       
       // Send prompt to Google Gemini API
@@ -286,6 +332,85 @@ function CreateTrip() {
               ref={inputRef}
               className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
             />
+            
+            {/* Destination Image Preview */}
+            {(loadingImage || destinationImage) && (
+              <div className="mt-4 rounded-xl overflow-hidden shadow-lg">
+                {loadingImage ? (
+                  <div className="w-full h-48 bg-gray-200 animate-pulse flex items-center justify-center">
+                    <div className="text-gray-500">Loading image...</div>
+                  </div>
+                ) : destinationImage ? (
+                  <>
+                    <img 
+                      src={destinationImage.url} 
+                      alt={destinationImage.alt} 
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="p-3 bg-gray-50 text-sm text-gray-600">
+                      Photo by <a 
+                        href={destinationImage.photographerUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {destinationImage.photographer}
+                      </a> on Unsplash
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
+                    <div className="text-gray-500">No image available</div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Hotel Recommendation */}
+            {(loadingHotel || recommendedHotel) && (
+              <div className="mt-4 rounded-xl overflow-hidden shadow-lg border border-gray-200">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-3">
+                  <h3 className="text-white font-bold flex items-center">
+                    <span className="mr-2">🏨</span> Recommended Hotel
+                  </h3>
+                </div>
+                {loadingHotel ? (
+                  <div className="p-4 bg-gray-50">
+                    <div className="h-24 bg-gray-200 animate-pulse rounded"></div>
+                  </div>
+                ) : recommendedHotel ? (
+                  <div className="p-4 bg-white">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-bold text-lg text-gray-800">{recommendedHotel.name}</h4>
+                      {recommendedHotel.stars && (
+                        <div className="flex items-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm">
+                          {Array(parseInt(recommendedHotel.stars) || 0).fill('⭐')}
+                          <span className="ml-1">{recommendedHotel.stars}-star</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-gray-600 text-sm mb-2">{recommendedHotel.address}</p>
+                    <p className="text-gray-700 text-sm mb-3">{recommendedHotel.description}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-600 font-semibold">Check availability</span>
+                      <button 
+                        className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
+                        onClick={() => {
+                          const searchUrl = `https://www.booking.com/searchresults.en-us.html?ss=${encodeURIComponent(recommendedHotel.name)}`;
+                          window.open(searchUrl, '_blank');
+                        }}
+                      >
+                        View Rates
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 text-center">
+                    <p className="text-gray-500">No hotel recommendations available for this location</p>
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* Suggestions dropdown */}
             {showSuggestions && suggestions.length > 0 && (

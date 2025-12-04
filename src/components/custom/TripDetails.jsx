@@ -5,6 +5,10 @@ import { useShareTrip } from '@/hooks/useShareTrip';
 import { toast } from 'sonner';
 import { enhanceHotelData } from '@/service/hotelApi'; // Import our new hotel API service
 import { searchPlacePhotos } from '@/service/photoApi'; // Import our new photo API service
+// Import Unsplash service
+import { fetchDestinationImage, fetchTripImages } from '@/service/unsplashService';
+// Import OpenStreetMap hotel service
+import { fetchTripHotels } from '@/service/hotelService';
 
 const TripDetails = () => {
   const { id } = useParams();
@@ -13,6 +17,9 @@ const TripDetails = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [enhancedHotels, setEnhancedHotels] = useState([]); // State for enhanced hotel data
   const [isEnhancing, setIsEnhancing] = useState(false); // State to track enhancement process
+  const [destinationImage, setDestinationImage] = useState(null); // Store destination image
+  const [tripImages, setTripImages] = useState([]); // Store trip images
+  const [loadingImages, setLoadingImages] = useState(false); // Loading state for images
   
   // States for data processing
   const [parsedTripData, setParsedTripData] = useState(null);
@@ -21,6 +28,30 @@ const TripDetails = () => {
   const [weatherInfo, setWeatherInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Fetch destination image when trip data changes
+  useEffect(() => {
+    const fetchImages = async () => {
+      if (tripData && tripData.userSelection && tripData.userSelection.location) {
+        setLoadingImages(true);
+        try {
+          // Fetch destination image
+          const destImage = await fetchDestinationImage(tripData.userSelection.location.label);
+          setDestinationImage(destImage);
+          
+          // Fetch additional trip images
+          const images = await fetchTripImages(tripData.userSelection.location.label, 5);
+          setTripImages(images);
+        } catch (error) {
+          console.error('Error fetching images:', error);
+        } finally {
+          setLoadingImages(false);
+        }
+      }
+    };
+    
+    fetchImages();
+  }, [tripData]);
   
   // Process trip data when it changes
   useEffect(() => {
@@ -177,19 +208,57 @@ const TripDetails = () => {
   
   // Function to enhance hotel data with real-time information
   const enhanceHotels = async () => {
-    if (hotelsData.length > 0 && !isEnhancing) {
+    if (!isEnhancing && tripData && tripData.userSelection && tripData.userSelection.location) {
       setIsEnhancing(true);
       try {
-        const enhanced = await enhanceHotelData(hotelsData, tripData.userSelection.location.label);
+        let enhanced = [];
+        
+        // Try to enhance existing hotels first
+        if (hotelsData.length > 0) {
+          enhanced = await enhanceHotelData(hotelsData, tripData.userSelection.location.label);
+        }
+        
+        // Always fetch from OpenStreetMap as additional recommendations
+        const osmHotels = await fetchTripHotels(tripData.userSelection.location.label, 5);
+        if (osmHotels.length > 0) {
+          // Convert OSM hotels to the expected format
+          const formattedHotels = osmHotels.map(hotel => ({
+            hotelName: hotel.name,
+            hotelAddress: hotel.address,
+            description: hotel.description,
+            price: 'Price information not available',
+            rating: hotel.stars || 'N/A',
+            hotelImageUrl: null, // Will be filled with Unsplash image
+            enhanced: true,
+            osmData: true // Flag to indicate this is from OSM
+          }));
+          
+          // Combine enhanced hotels with OSM hotels
+          if (enhanced.length > 0) {
+            // If we have enhanced hotels, add OSM hotels as additional recommendations
+            enhanced = [...enhanced, ...formattedHotels];
+          } else {
+            // If no enhanced hotels, use OSM hotels as primary recommendations
+            enhanced = formattedHotels;
+          }
+        }
+        
         setEnhancedHotels(enhanced);
-        if (enhanced.some(hotel => hotel.enhanced)) {
-          toast.success('Hotel information enhanced with real-time data!');
+        
+        if (enhanced.length > 0) {
+          if (enhanced.some(hotel => hotel.enhanced && !hotel.osmData)) {
+            toast.success('Hotel information enhanced with real-time data!');
+          } else if (enhanced.some(hotel => hotel.osmData)) {
+            toast.success('Hotel recommendations loaded from OpenStreetMap!');
+          } else {
+            toast.success('Hotel recommendations ready!');
+          }
         } else {
-          toast.info('No additional hotel data found. Showing original information.');
+          toast.info('No hotel data found.');
         }
       } catch (error) {
         console.error('Error enhancing hotels:', error);
-        toast.error('Failed to enhance hotel information. Showing original data.');
+        toast.error('Failed to enhance hotel information.');
       } finally {
         setIsEnhancing(false);
       }
@@ -270,7 +339,7 @@ const TripDetails = () => {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {places.map((place, index) => (
-            <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow">
+            <div key={index} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-bold text-gray-800">{place.placeName || place.name || place.title || `Place ${index + 1}`}</h3>
                 {(place.rating || place.reviewScore) && (
@@ -323,8 +392,8 @@ const TripDetails = () => {
   // We need to put this useEffect after all the variable declarations but before the return statement
   // But we also need to make sure it doesn't run before the component is fully initialized
   useEffect(() => {
-    // Only run if we have hotel data and haven't enhanced yet
-    if (hotelsData.length > 0 && enhancedHotels.length === 0) {
+    // Run enhancement when we have trip data and either have hotel data or need OSM fallback
+    if (tripData && (hotelsData.length > 0 || enhancedHotels.length === 0)) {
       // Small delay to ensure component is fully mounted
       const timer = setTimeout(() => {
         enhanceHotels();
@@ -333,7 +402,7 @@ const TripDetails = () => {
       // Cleanup timer
       return () => clearTimeout(timer);
     }
-  }, [hotelsData, enhancedHotels]); // Dependency array ensures this runs when hotelsData or enhancedHotels change
+  }, [tripData, hotelsData, enhancedHotels]); // Dependency array ensures this runs when hotelsData or enhancedHotels change
   
   // Show loading state while fetching data
   if (isLoading) {
@@ -369,16 +438,28 @@ const TripDetails = () => {
   return (
     <div className="min-h-screen py-10 px-4 md:px-8 relative overflow-hidden">
       {/* Background with image and overlay similar to Create Trip page - increased visibility */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center opacity-20"
-        style={{ 
-          backgroundImage: "url('https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=1920&auto=format&fit=crop')",
-          backgroundAttachment: 'fixed'
-        }}
-      ></div>
+      {loadingImages ? (
+        <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+      ) : destinationImage ? (
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ 
+            backgroundImage: `url('${destinationImage.url}')`,
+            backgroundAttachment: 'fixed'
+          }}
+        ></div>
+      ) : (
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ 
+            backgroundImage: "url('https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=1920&auto=format&fit=crop')",
+            backgroundAttachment: 'fixed'
+          }}
+        ></div>
+      )}
       
-      {/* Semi-transparent overlay to ensure content readability - adjusted for better visibility */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/15 via-white/80 to-purple-900/15 backdrop-blur-sm"></div>
+      {/* Semi-transparent overlay to ensure content readability - reduced opacity for better background visibility */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-white/60 to-purple-900/10 backdrop-blur-sm"></div>
       
       <div className="max-w-6xl mx-auto relative z-10">
         {/* Header */}
@@ -390,7 +471,7 @@ const TripDetails = () => {
         </div>
 
         {/* Trip Summary Card */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="border-r border-gray-100 pr-4">
               <p className="text-gray-600 text-sm">Destination</p>
@@ -417,7 +498,7 @@ const TripDetails = () => {
 
         {/* Weather Information Section */}
         {weatherInfo && (
-          <div className="mb-12 bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="mb-12 bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
               <span className="mr-2">🌤️</span> Weather Information
             </h2>
@@ -431,7 +512,7 @@ const TripDetails = () => {
         {renderPlaceRecommendations(extractPlaceRecommendations(parsedTripData))}
         
         {/* Hotels Section */}
-        {hotelsData.length > 0 && (
+        {(hotelsData.length > 0 || enhancedHotels.length > 0) && (
           <div className="mb-12">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800 flex items-center">
@@ -457,7 +538,7 @@ const TripDetails = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(enhancedHotels.length > 0 ? enhancedHotels : hotelsData).map((hotel, index) => (
-                <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow">
+                <div key={index} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow">
                   <div className="h-48 overflow-hidden">
                     <img 
                       src={hotel.hotelImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80'} 
@@ -482,9 +563,26 @@ const TripDetails = () => {
                     <p className="text-gray-600 mb-3">{hotel.hotelAddress || 'Address not available'}</p>
                     <p className="text-gray-700 mb-4">{hotel.description || 'Description not available'}</p>
                     <div className="flex justify-between items-center">
-                      <span className="text-2xl font-bold text-blue-600">{hotel.price || 'Price not available'}</span>
-                      <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
-                        Book Now
+                      <span className="text-2xl font-bold text-blue-600">
+                        {hotel.osmData ? 'Check Availability' : (hotel.price || 'Price not available')}
+                      </span>
+                      <button 
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                        onClick={() => {
+                          if (hotel.website) {
+                            window.open(hotel.website, '_blank');
+                          } else if (hotel.osmData) {
+                            // For OSM data, we can show a search link
+                            const searchUrl = `https://www.booking.com/searchresults.en-us.html?ss=${encodeURIComponent(hotel.name || hotel.hotelName)}`;
+                            window.open(searchUrl, '_blank');
+                          } else {
+                            // Default search
+                            const searchUrl = `https://www.booking.com/searchresults.en-us.html?ss=${encodeURIComponent(hotel.hotelName || '')}`;
+                            window.open(searchUrl, '_blank');
+                          }
+                        }}
+                      >
+                        {hotel.osmData ? 'Check Rates' : 'Book Now'}
                       </button>
                     </div>
                     {hotel.enhanced && hotel.realTimePriceRange && (
@@ -507,7 +605,7 @@ const TripDetails = () => {
             </h2>
             <div className="space-y-8">
               {itineraryData.map((dayData, index) => (
-                <div key={index} className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+                <div key={index} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-gray-100">
                   <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4">
                     <h3 className="text-xl font-bold text-white">{dayData.day || `Day ${index + 1}`}: {dayData.date || `Day ${index + 1}`}</h3>
                   </div>
@@ -597,7 +695,7 @@ const TripDetails = () => {
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                 <span className="mr-2">📅</span> Trip Itinerary
               </h2>
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
                 <div className="prose max-w-none">
                   {typeof parsedTripData === 'string' ? (
                     <pre className="whitespace-pre-wrap">{parsedTripData}</pre>
