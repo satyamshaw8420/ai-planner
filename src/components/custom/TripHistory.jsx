@@ -9,6 +9,7 @@ import { fetchDestinationImage } from '@/service/unsplashService';
 // Import OpenStreetMap hotel service
 import { fetchTripHotels } from '@/service/hotelService';
 
+
 const TripHistory = () => {
   const navigate = useNavigate();
   const { allTrips } = useFetchTrips();
@@ -492,41 +493,25 @@ const TripHistory = () => {
             
             <div className="flex flex-wrap gap-2">
               <button 
-                className={`px-4 py-2 rounded-lg transition-all !bg-gradient-to-r !from-blue-500 !to-purple-500 text-white shadow-md ${
-                  filter === 'all' 
-                    ? '' 
-                    : '!bg-gray-200 text-gray-800 hover:!bg-gray-300 focus:outline-none focus:ring-0'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-lg ${filter === 'all' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setFilter('all')}
               >
                 All Time
               </button>
               <button 
-                className={`px-4 py-2 rounded-lg transition-all !bg-gradient-to-r !from-blue-500 !to-purple-500 text-white shadow-md ${
-                  filter === 'today' 
-                    ? '' 
-                    : '!bg-gray-200 text-gray-800 hover:!bg-gray-300 focus:outline-none focus:ring-0'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-lg ${filter === 'today' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setFilter('today')}
               >
                 Today
               </button>
               <button 
-                className={`px-4 py-2 rounded-lg transition-all !bg-gradient-to-r !from-blue-500 !to-purple-500 text-white shadow-md ${
-                  filter === 'week' 
-                    ? '' 
-                    : '!bg-gray-200 text-gray-800 hover:!bg-gray-300 focus:outline-none focus:ring-0'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-lg ${filter === 'week' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setFilter('week')}
               >
                 This Week
               </button>
               <button 
-                className={`px-4 py-2 rounded-lg transition-all !bg-gradient-to-r !from-blue-500 !to-purple-500 text-white shadow-md ${
-                  filter === 'month' 
-                    ? '' 
-                    : '!bg-gray-200 text-gray-800 hover:!bg-gray-300 focus:outline-none focus:ring-0'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-lg ${filter === 'month' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setFilter('month')}
               >
                 This Month
@@ -548,28 +533,27 @@ const TripHistory = () => {
                   className="cursor-pointer"
                   onClick={() => navigate(`/trip-details/${trip._id}`)}
                 >
-                  {/* Trip Image Header */}
-                  <div className="relative h-48">
+                  {/* Trip Image Carousel */}
+                  <div className="relative">
                     {loadingImages ? (
-                      <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center">
+                      <div className="w-full h-48 bg-gray-200 animate-pulse flex items-center justify-center rounded-t-2xl">
                         <div className="text-gray-500 text-sm">Loading...</div>
                       </div>
-                    ) : tripImages[trip._id] ? (
-                      <img 
-                        src={tripImages[trip._id].url} 
-                        alt={tripImages[trip._id].alt || trip.userSelection.location.label}
-                        className="w-full h-full object-cover"
-                      />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
-                        <div className="text-white text-sm">No image</div>
+                      <div className="relative h-48 rounded-t-2xl overflow-hidden">
+                        {tripImages[trip._id] ? (
+                          <img 
+                            src={tripImages[trip._id].url} 
+                            alt={trip.userSelection.location.label}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
+                            <div className="text-white text-sm">No image available</div>
+                          </div>
+                        )}
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
-                      <h3 className="text-2xl font-bold text-white text-center px-4">
-                        {trip.userSelection.location.label}
-                      </h3>
-                    </div>
                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold text-gray-800 shadow">
                       {trip.userSelection.days} Days
                     </div>
@@ -633,7 +617,7 @@ const TripHistory = () => {
                       e.stopPropagation();
                       navigate(`/trip-details/${trip._id}`);
                     }}
-                    className="text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                    className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center"
                   >
                     View Details
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -646,7 +630,7 @@ const TripHistory = () => {
                       setSharingTripId(trip._id === sharingTripId ? null : trip._id);
                       generateShareLink(trip._id);
                     }}
-                    className="text-purple-600 hover:text-purple-800 font-medium flex items-center"
+                    className="px-3 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center"
                   >
                     Share
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -665,7 +649,7 @@ const TripHistory = () => {
               <p className="text-gray-600 mb-6">Start planning your first adventure!</p>
               <button
                 onClick={() => navigate('/create-trip')}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-medium py-2 px-6 rounded-lg hover:shadow-md transition-all"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
               >
                 Create Your First Trip
               </button>

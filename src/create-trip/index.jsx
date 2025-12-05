@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Input } from '../components/ui/input'
 import { AI_PROMPT, SelectBudgetOptions, SelectTravelesList } from '@/constants/options'
 import { Button } from '../components/ui/button'
+
 import { toast } from 'sonner'
 import { chatSession } from '@/service/AIModal'
 import { FcGoogle } from 'react-icons/fc'
@@ -13,6 +14,7 @@ import GoogleLoginModal from '../components/custom/GoogleLoginModal';
 import { fetchDestinationImage } from '@/service/unsplashService';
 // Import OpenStreetMap hotel service
 import { fetchDestinationHotel } from '@/service/hotelService';
+
 
 function CreateTrip() {
   const navigate = useNavigate();
@@ -38,6 +40,7 @@ function CreateTrip() {
   const [recommendedHotel, setRecommendedHotel] = useState(null); // Store recommended hotel
   const [loadingHotel, setLoadingHotel] = useState(false); // Loading state for hotel fetch
   const inputRef = useRef(null)
+  const suggestionsRef = useRef(null);
   const debounceTimer = useRef(null);
 
   // Listen for the custom event from Header to show Google Sign-In
@@ -53,6 +56,22 @@ function CreateTrip() {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
+    };
+  }, []);
+
+  // Handle click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) && 
+          inputRef.current && !inputRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+        setSuggestions([]);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -94,7 +113,7 @@ function CreateTrip() {
     return () => clearTimeout(timer);
   }, [formData.location?.label]);
 
-  // Fetch location suggestions from Mapbox API
+  // Fetch location suggestions from Photon (Mapbox) API
   const fetchSuggestions = async (query) => {
     if (!query.trim()) {
       setSuggestions([]);
@@ -103,12 +122,26 @@ function CreateTrip() {
     }
 
     try {
+      // Using Photon API for autocomplete
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=pk.eyJ1Ijoic2h1YmgxMDA3IiwiYSI6ImNtMWNybmJwcjAwN2kycHBvdzZ0MW10aWsifQ.0G-8C5KXgGsHMA-MOrgRew&types=place,locality,address&limit=5`
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`
       );
       const data = await response.json();
-      setSuggestions(data.features || []);
-      setShowSuggestions(true);
+      
+      // Transform Photon response to match our expected format
+      const transformedSuggestions = data.features?.map(feature => ({
+        properties: {
+          name: feature.properties.name || '',
+          city: feature.properties.city || feature.properties.county || '',
+          country: feature.properties.country || '',
+          state: feature.properties.state || ''
+        },
+        geometry: feature.geometry,
+        place_type: [feature.properties.osm_key || 'place']
+      })) || [];
+      
+      setSuggestions(transformedSuggestions);
+      setShowSuggestions(transformedSuggestions.length > 0);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
       setSuggestions([]);
@@ -155,6 +188,11 @@ function CreateTrip() {
     debounceTimer.current = setTimeout(() => {
       fetchSuggestions(value);
     }, 300); // 300ms debounce delay
+    
+    // Show suggestions container immediately for better UX
+    if (value.length > 2) {
+      setShowSuggestions(true);
+    }
   };
 
   const handleCreateTrip = async () => {
@@ -304,7 +342,15 @@ function CreateTrip() {
   // Function to handle suggestion click
   const handleSuggestionClick = (suggestion) => {
     console.log('Selected suggestion:', suggestion);
-    const locationLabel = suggestion.properties.name || suggestion.properties.city || suggestion.properties.country || 'Unknown Location';
+    // Create a comprehensive location label from Photon data
+    const locationParts = [
+      suggestion.properties.name,
+      suggestion.properties.city,
+      suggestion.properties.state,
+      suggestion.properties.country
+    ].filter(Boolean);
+    
+    const locationLabel = locationParts.join(', ') || 'Unknown Location';
     handleInputChange('destination', locationLabel);
     setShowSuggestions(false);
     setSuggestions([]);
@@ -316,96 +362,142 @@ function CreateTrip() {
   };
 
   return (
-    <div className="mb-10">
-      <h2 className="font-bold text-3xl text-center">Tell us your travel preferences 🤖🌴</h2>
-      <p className="mt-2 text-gray-500 text-center">Just provide some basic information, and our trip planner will generate a customized itinerary for you!</p>
+    <div className="mb-10 relative overflow-hidden">
+      {/* Futuristic background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/3 right-1/4 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl animate-pulse delay-2000"></div>
+        
+        
+      </div>
+      
+      <div className="relative z-10">
+        <h2 className="font-bold text-4xl text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-2">
+          Tell us your travel preferences 🤖🌴
+        </h2>
+        <p className="mt-2 text-gray-600 text-center text-lg max-w-2xl mx-auto">
+          Just provide some basic information, and our AI trip planner will generate a customized itinerary for you!
+        </p>
 
-      <div className="mt-6 md:mt-8 shadow-md p-6 lg:p-8 rounded-xl max-w-4xl mx-auto bg-white">
+        <div className="mt-8 md:mt-12 backdrop-blur-xl bg-white/70 border border-white/70 shadow-2xl shadow-blue-500/20 p-6 lg:p-8 rounded-2xl max-w-4xl mx-auto transition-all duration-500 hover:shadow-blue-500/30">
         {/* Destination Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">📍 What is your destination of choice?</h2>
-          <div className="relative">
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">📍</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">What is your destination of choice?</span>
+          </h2>
+          <div className="relative mt-4 pb-2 flex">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
             <Input 
               placeholder="Enter a destination (e.g. Paris, Bali, Tokyo)" 
               value={formData.location?.label || ''}
               onChange={handleDestinationChange}
+              onBlur={() => {
+                // Delay hiding suggestions to allow for clicks on suggestions
+                setTimeout(() => {
+                  if (showSuggestions) {
+                    setShowSuggestions(false);
+                  }
+                }, 150);
+              }}
               ref={inputRef}
-              className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              className="py-6 pl-10 pr-4 border-2 border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition-all bg-white/80 backdrop-blur-sm group-hover:border-blue-300 w-full rounded-l-xl"
             />
-            
-            {/* Destination Image Preview */}
-            {(loadingImage || destinationImage) && (
-              <div className="mt-4 rounded-xl overflow-hidden shadow-lg">
-                {loadingImage ? (
-                  <div className="w-full h-48 bg-gray-200 animate-pulse flex items-center justify-center">
-                    <div className="text-gray-500">Loading image...</div>
-                  </div>
-                ) : destinationImage ? (
-                  <>
+          </div>
+          
+          {/* Destination Image Carousel */}
+          {(loadingImage || destinationImage) && (
+            <div className="mt-4 rounded-xl overflow-hidden shadow-lg">
+              {loadingImage ? (
+                <div className="w-full h-48 bg-gray-200 animate-pulse flex items-center justify-center rounded-t-xl">
+                  <div className="text-gray-500">Loading image...</div>
+                </div>
+              ) : destinationImage ? (
+                <>
+                  <div className="relative h-48 rounded-t-xl overflow-hidden">
                     <img 
                       src={destinationImage.url} 
-                      alt={destinationImage.alt} 
-                      className="w-full h-48 object-cover"
+                      alt={formData.location?.label || "Destination"}
+                      className="w-full h-full object-cover"
                     />
-                    <div className="p-3 bg-gray-50 text-sm text-gray-600">
-                      Photo by <a 
-                        href={destinationImage.photographerUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        {destinationImage.photographer}
-                      </a> on Unsplash
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
-                    <div className="text-gray-500">No image available</div>
                   </div>
-                )}
-              </div>
-            )}
+                  <div className="p-3 bg-gray-50 text-sm text-gray-600">
+                    Photo by <a 
+                      href={destinationImage.photographerUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {destinationImage.photographer}
+                    </a> on Unsplash
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-48 bg-gray-100 flex items-center justify-center rounded-t-xl">
+                  <div className="text-gray-500">No image available</div>
+                </div>
+              )}
+            </div>
+          )}
             
             {/* Hotel Recommendation */}
             {(loadingHotel || recommendedHotel) && (
-              <div className="mt-4 rounded-xl overflow-hidden shadow-lg border border-gray-200">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-3">
-                  <h3 className="text-white font-bold flex items-center">
-                    <span className="mr-2">🏨</span> Recommended Hotel
+              <div className="mt-4 rounded-2xl overflow-hidden shadow-xl border border-gray-200 backdrop-blur-sm bg-white/80 hover:shadow-2xl transition-all duration-300">
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 flex items-center justify-between">
+                  <h3 className="text-white font-bold flex items-center gap-2">
+                    <span className="text-2xl">🏨</span>
+                    <span>Recommended Hotel</span>
                   </h3>
+                  <div className="w-3 h-3 bg-white/80 rounded-full animate-pulse"></div>
                 </div>
                 {loadingHotel ? (
-                  <div className="p-4 bg-gray-50">
-                    <div className="h-24 bg-gray-200 animate-pulse rounded"></div>
+                  <div className="p-6 bg-gray-50/50">
+                    <div className="h-32 bg-gray-200 animate-pulse rounded-xl"></div>
                   </div>
                 ) : recommendedHotel ? (
-                  <div className="p-4 bg-white">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-lg text-gray-800">{recommendedHotel.name}</h4>
+                  <div className="p-6 bg-white/90 backdrop-blur-sm">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h4 className="font-bold text-xl text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">{recommendedHotel.name}</h4>
+                        <p className="text-gray-600 text-sm mt-1">{recommendedHotel.address}</p>
+                      </div>
                       {recommendedHotel.stars && (
-                        <div className="flex items-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm">
+                        <div className="flex items-center bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-bold">
                           {Array(parseInt(recommendedHotel.stars) || 0).fill('⭐')}
                           <span className="ml-1">{recommendedHotel.stars}-star</span>
                         </div>
                       )}
                     </div>
-                    <p className="text-gray-600 text-sm mb-2">{recommendedHotel.address}</p>
-                    <p className="text-gray-700 text-sm mb-3">{recommendedHotel.description}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-600 font-semibold">Check availability</span>
+                    <p className="text-gray-700 mb-4">{recommendedHotel.description}</p>
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                      <span className="text-blue-600 font-semibold flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        Check availability
+                      </span>
                       <button 
-                        className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
+                        className="text-sm bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition-all duration-300 font-medium flex items-center gap-1 group"
                         onClick={() => {
                           const searchUrl = `https://www.booking.com/searchresults.en-us.html?ss=${encodeURIComponent(recommendedHotel.name)}`;
                           window.open(searchUrl, '_blank');
                         }}
                       >
-                        View Rates
+                        <span>View Rates</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-gray-50 text-center">
+                  <div className="p-6 bg-gray-50/50 text-center">
                     <p className="text-gray-500">No hotel recommendations available for this location</p>
                   </div>
                 )}
@@ -414,26 +506,31 @@ function CreateTrip() {
             
             {/* Suggestions dropdown */}
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+              <div 
+                ref={suggestionsRef}
+                className="absolute z-20 w-80 right-0 top-0 bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto transition-all duration-200 ease-in-out opacity-100 scale-100"
+              >
                 {suggestions.map((suggestion, index) => {
-                  // Extract location details
+                  // Extract location details for Photon API
                   const name = suggestion.properties.name || '';
                   const city = suggestion.properties.city || '';
+                  const state = suggestion.properties.state || '';
                   const country = suggestion.properties.country || '';
                   
                   // Create a display label
-                  const displayLabel = [name, city, country].filter(Boolean).join(', ');
+                  const displayLabel = [name, city, state, country].filter(Boolean).join(', ');
+                  
+                  // Get place type for Photon API
+                  const placeType = suggestion.place_type?.[0] || 'place';
                   
                   return (
                     <div 
                       key={index}
                       onClick={() => handleSuggestionClick(suggestion)}
-                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
                     >
                       <div className="font-medium">{displayLabel}</div>
-                      {suggestion.place_type && (
-                        <div className="text-xs text-gray-500 capitalize">{suggestion.place_type.join(', ')}</div>
-                      )}
+                      <div className="text-xs text-gray-500 capitalize">{placeType}</div>
                     </div>
                   );
                 })}
@@ -443,94 +540,143 @@ function CreateTrip() {
         </div>
 
         {/* Travelers Selection Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">👥 Who are you traveling with?</h2>
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">👥</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">Who are you traveling with?</span>
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
             {SelectTravelesList.map((item, index) => (
               <div 
                 key={index}
                 onClick={() => OnSelectTraveler(item)}
-                className={`cursor-pointer p-4 border rounded-xl hover:shadow-md transition-all ${
+                className={`cursor-pointer p-5 border rounded-2xl transition-all duration-300 hover:shadow-xl backdrop-blur-sm ${
                   formData.travelers?.id === item.id 
-                    ? 'border-blue-500 bg-blue-50 shadow-md transform scale-105' 
-                    : 'border-gray-300 hover:border-blue-300'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-50/80 to-purple-50/80 shadow-lg transform scale-105 ring-2 ring-blue-500/30' 
+                    : 'border-gray-200 bg-white/70 hover:border-blue-300 hover:bg-white/90'
                 }`}
               >
-                <h2 className="text-2xl"> {item.icon}</h2>
-                <h2 className="text-lg font-bold">{item.title}</h2>
-                <h2 className="text-sm text-gray-500">{item.desc}</h2>
+                <h2 className="text-3xl mb-2">{item.icon}</h2>
+                <h2 className="text-lg font-bold text-gray-800">{item.title}</h2>
+                <h2 className="text-sm text-gray-600 mt-1">{item.desc}</h2>
               </div>
             ))}
           </div>
         </div>
 
         {/* Number of Members Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">👥 How many people are going on this trip?</h2>
-          <Input 
-            placeholder="Enter number of members (1-20)" 
-            type="number"
-            min="1"
-            max="20"
-            value={formData.numberOfMembers}
-            onChange={(e) => handleInputChange('numberOfMembers', e.target.value)}
-            className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-full md:w-1/3"
-          />
-          <p className="text-sm text-gray-500 mt-2">Maximum 20 members allowed</p>
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">👥</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">How many people are going on this trip?</span>
+          </h2>
+          <div className="relative mt-4 max-w-xs">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <Input 
+              placeholder="Enter number of members (1-20)" 
+              type="number"
+              min="1"
+              max="20"
+              value={formData.numberOfMembers}
+              onChange={(e) => handleInputChange('numberOfMembers', e.target.value)}
+              className="py-6 pl-10 pr-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition-all w-full bg-white/80 backdrop-blur-sm group-hover:border-blue-300"
+            />
+          </div>
+          <p className="text-sm text-gray-600 mt-2 flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Maximum 20 members allowed
+          </p>
         </div>
 
         {/* Start Date Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">📅 When will your trip start?</h2>
-          <Input 
-            type="date"
-            value={formData.startDate}
-            onChange={(e) => handleInputChange('startDate', e.target.value)}
-            min={new Date().toISOString().split('T')[0]} // Today or future dates only
-            className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-full md:w-1/3"
-          />
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">📅</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">When will your trip start?</span>
+          </h2>
+          <div className="relative mt-4 max-w-xs">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <Input 
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => handleInputChange('startDate', e.target.value)}
+              min={new Date().toISOString().split('T')[0]} // Today or future dates only
+              className="py-6 pl-10 pr-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition-all w-full bg-white/80 backdrop-blur-sm group-hover:border-blue-300"
+            />
+          </div>
         </div>
 
         {/* Days Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">🗓️ How many days are you planning your trip?</h2>
-          <Input 
-            placeholder="Ex. 3" 
-            type="number"
-            min="1"
-            max="13"
-            value={formData.days}
-            onChange={(e) => handleInputChange('days', e.target.value)}
-            className="py-6 px-4 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all w-full md:w-1/3"
-          />
-          <p className="text-sm text-gray-500 mt-2">Maximum 13 days allowed</p>
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">🗓️</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">How many days are you planning your trip?</span>
+          </h2>
+          <div className="relative mt-4 max-w-xs">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <Input 
+              placeholder="Ex. 3" 
+              type="number"
+              min="1"
+              max="13"
+              value={formData.days}
+              onChange={(e) => handleInputChange('days', e.target.value)}
+              className="py-6 pl-10 pr-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-200 transition-all w-full bg-white/80 backdrop-blur-sm group-hover:border-blue-300"
+            />
+          </div>
+          <p className="text-sm text-gray-600 mt-2 flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Maximum 13 days allowed
+          </p>
         </div>
 
         {/* Budget Field */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">💰 What is your budget for this trip?</h2>
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">💰</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">What is your budget for this trip?</span>
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
             {SelectBudgetOptions.map((item, index) => (
               <div 
                 key={index}
                 onClick={() => OnSelectBudget(item)}
-                className={`cursor-pointer p-4 border rounded-xl hover:shadow-md transition-all ${
+                className={`cursor-pointer p-5 border rounded-2xl transition-all duration-300 hover:shadow-xl backdrop-blur-sm ${
                   formData.budget?.id === item.id 
-                    ? 'border-blue-500 bg-blue-50 shadow-md transform scale-105' 
-                    : 'border-gray-300 hover:border-blue-300'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-50/80 to-purple-50/80 shadow-lg transform scale-105 ring-2 ring-blue-500/30' 
+                    : 'border-gray-200 bg-white/70 hover:border-blue-300 hover:bg-white/90'
                 }`}
               >
-                <h2 className="text-2xl">{item.icon}</h2>
-                <h2 className="text-lg font-bold">{item.title}</h2>
-                <h2 className="text-sm text-gray-500">{item.desc}</h2>
+                <h2 className="text-3xl mb-2">{item.icon}</h2>
+                <h2 className="text-lg font-bold text-gray-800">{item.title}</h2>
+                <h2 className="text-sm text-gray-600 mt-1">{item.desc}</h2>
               </div>
             ))}
           </div>
         </div>
 
         {/* Popular Destinations */}
-        <div className="mb-8">
-          <h2 className="text-xl my-2 font-medium">🌟 Popular Destinations</h2>
+        <div className="mb-8 group">
+          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
+            <span className="text-2xl">🌟</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">Popular Destinations</span>
+          </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
             {[
               'Paris, France',
@@ -545,9 +691,9 @@ function CreateTrip() {
               <button
                 key={index}
                 onClick={() => handleInputChange('destination', destination)}
-                className="text-left p-3 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg transition-colors"
+                className="text-left p-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl transition-all duration-300 hover:shadow-md hover:border-blue-300 hover:bg-blue-50/50 group"
               >
-                {destination}
+                <span className="group-hover:text-blue-600 transition-colors">{destination}</span>
               </button>
             ))}
           </div>
@@ -555,20 +701,24 @@ function CreateTrip() {
 
         {/* Create Trip Button */}
         <div className="mt-8">
-          <Button 
+          <button 
             onClick={handleCreateTrip}
             disabled={isCreatingTrip}
-            className="w-full py-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed relative overflow-hidden group"
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-purple-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
             {isCreatingTrip ? (
-              <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center relative z-10">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
                 Generating Your Trip...
               </div>
             ) : (
-              '✈️ Create My Trip'
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                <span className="text-2xl">✈️</span>
+                <span>Create My Trip</span>
+              </div>
             )}
-          </Button>
+          </button>
         </div>
       </div>
 

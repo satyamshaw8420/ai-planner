@@ -64,7 +64,11 @@ const PremiumHeader = () => {
               <button
                 key={item.name}
                 onClick={() => {  
-                  navigate(item.path);
+                  if (item.onClick) {
+                    item.onClick();
+                  } else {
+                    navigate(item.path);
+                  }
                   setIsMenuOpen(false);
                 }}
                 className={`text-white !text-white font-medium hover:text-blue-400 hover:underline transition-all duration-300 ease-in-out focus:outline-none focus:ring-0 focus:border-0 whitespace-nowrap ${
@@ -104,6 +108,7 @@ const PremiumHeader = () => {
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-white hover:text-blue-400 focus:outline-none focus:ring-0 transition-colors duration-300"
+              aria-label="Toggle navigation menu"
             >
               {isMenuOpen ? (
                 <span className="text-2xl !text-white">×</span>
@@ -123,7 +128,11 @@ const PremiumHeader = () => {
               <button
                 key={item.name}
                 onClick={() => {
-                  navigate(item.path);
+                  if (item.onClick) {
+                    item.onClick();
+                  } else {
+                    navigate(item.path);
+                  }
                   setIsMenuOpen(false);
                 }}
                 className={`text-left text-white !text-white font-medium py-2 hover:text-blue-400 hover:underline transition-all duration-300 ease-in-out focus:outline-none focus:ring-0 ${

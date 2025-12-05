@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import GoogleLoginModal from './GoogleLoginModal';
 // Import Unsplash service
 import { fetchUnsplashImages } from '@/service/unsplashService';
-
+import TypingText from './TypingText';
 const Hero = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -136,8 +136,8 @@ const Hero = () => {
       </div>
       
       {/* Main Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-36 min-h-screen flex items-center">
-        <div className="text-center w-full">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-36 min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-3xl">
           <div className="text-4xl md:text-6xl font-extrabold text-white mb-6">
             <div className="block overflow-hidden">
               <span className="inline-block animate-slide-in-left-slow">Plan Your Perfect</span>
@@ -146,13 +146,15 @@ const Hero = () => {
               <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300 animate-slide-in-right-slow">Travel Experience</span>
             </div>
           </div>
-          <p className="mt-6 max-w-lg mx-auto text-xl text-gray-100 animate-fade-in-up">
-            Create personalized travel itineraries powered by AI. Discover destinations, plan activities, and make unforgettable memories.
-          </p>
-          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+          {/* Typing animation text with blurred background */}
+          <div className="mt-6 text-3xl font-bold relative">
+            <div className="backdrop-blur-sm bg-black/30 rounded-xl p-4 inline-block">
+              <TypingText />
+            </div>
+          </div>          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
             <button
               onClick={() => navigate('/create-trip')}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 text-lg"
+              className="px-8 py-4 bg-white/80 text-gray-900 font-bold rounded-xl shadow-lg hover:shadow-xl border-2 border-white/50 hover:border-gray-300 transform hover:-translate-y-1 transition-all duration-300 text-lg backdrop-blur-sm"
             >
               Start Planning Your Trip
             </button>
@@ -169,7 +171,7 @@ const Hero = () => {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-2 bg-white text-gray-800 px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 font-medium"
+                className="px-6 py-3 bg-white/90 text-gray-900 font-bold rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 mx-auto"
                 title={`Logout ${user.fullname || user.email || 'user'}`}
               >
                 <FiLogOut className="text-xl" />
@@ -178,7 +180,7 @@ const Hero = () => {
             ) : (
               <button
                 onClick={handleGoogleSignIn}
-                className="inline-flex items-center gap-2 bg-white text-gray-800 px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 font-medium"
+                className="px-6 py-3 bg-white/90 text-gray-900 font-bold rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 mx-auto"
                 title="Sign in with Google"
               >
                 <FcGoogle className="text-xl" />
@@ -187,6 +189,8 @@ const Hero = () => {
             )}
           </div>
         </div>
+        
+
       </div>
 
       {/* Google Login Modal */}
