@@ -142,9 +142,9 @@ const TripDetails = () => {
       let weather = null;
       
       // Extract weather info if present in the object
-      if (parsedData.weatherInfo) {
+      if (parsedData?.weatherInfo) {
         weather = parsedData.weatherInfo;
-      } else if (parsedData.weather) {
+      } else if (parsedData?.weather) {
         // Format weather data if stored as structured object
         weather = `**Current Weather in ${tripData.userSelection.location.label}:**
 🌡️ ${parsedData.weather.temperature}°C, ${parsedData.weather.description}
@@ -153,29 +153,36 @@ const TripDetails = () => {
       
       setWeatherInfo(weather);
       
-      // Check if itinerary is an array
-      if (Array.isArray(parsedData?.itinerary)) {
-        itinerary = parsedData.itinerary;
-        hotels = parsedData.hotels || [];
-      } 
-      // Check if itinerary is an object with day keys
-      else if (parsedData?.itinerary && typeof parsedData.itinerary === 'object') {
-        // Sort day keys numerically
-        const sortedEntries = Object.entries(parsedData.itinerary)
-          .sort(([a], [b]) => {
-            const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-            const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-            return numA - numB;
-          });
-        
-        itinerary = sortedEntries.map(([dayKey, dayData], index) => ({
-          day: `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
-          date: dayData.date || dayData.theme || `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
-          plan: dayData.plan || dayData.places || dayData.activities || []
-        }));
-        hotels = parsedData.hotels || [];
-      } else {
-        // Handle day1, day2, etc. format at top level
+      // Extract hotels data
+      if (parsedData?.hotels && Array.isArray(parsedData.hotels)) {
+        hotels = parsedData.hotels;
+      }
+      
+      // Check if itinerary is in the itinerary property
+      if (parsedData?.itinerary) {
+        // Check if itinerary is an array
+        if (Array.isArray(parsedData.itinerary)) {
+          itinerary = parsedData.itinerary;
+        } 
+        // Check if itinerary is an object with day keys
+        else if (typeof parsedData.itinerary === 'object') {
+          // Sort day keys numerically
+          const sortedEntries = Object.entries(parsedData.itinerary)
+            .sort(([a], [b]) => {
+              const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+              const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+              return numA - numB;
+            });
+          
+          itinerary = sortedEntries.map(([dayKey, dayData], index) => ({
+            day: `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
+            date: dayData.date || dayData.theme || `Day ${parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1)}`,
+            plan: dayData.plan || dayData.places || dayData.activities || []
+          }));
+        }
+      } else if (parsedData) {
+        // Handle case where the entire parsedData is the itinerary object
+        // Check if it has day keys at the top level
         const dayKeys = Object.keys(parsedData)
           .filter(key => key.toLowerCase().startsWith('day'))
           .sort((a, b) => {
@@ -194,9 +201,12 @@ const TripDetails = () => {
               plan: dayData.plan || dayData.places || dayData.activities || []
             };
           });
-          hotels = parsedData.hotels || [];
+          hotels = parsedData.hotels || hotels;
         }
       }
+      
+      console.log('Processed itinerary data:', itinerary);
+      console.log('Processed hotels data:', hotels);
       
       setItineraryData(itinerary);
       setHotelsData(hotels);
@@ -316,11 +326,21 @@ const TripDetails = () => {
         return;
       }
       
-      // Recursively search in arrays and objects
+      // If this is an array of activities/places
       if (Array.isArray(obj)) {
         obj.forEach(item => searchForPlaces(item));
-      } else {
-        Object.values(obj).forEach(value => searchForPlaces(value));
+      } 
+      // If this is an object with nested activities
+      else if (typeof obj === 'object') {
+        // Check if this object has activities array
+        if (obj.activities && Array.isArray(obj.activities)) {
+          obj.activities.forEach(activity => searchForPlaces(activity));
+        } else if (obj.places && Array.isArray(obj.places)) {
+          obj.places.forEach(place => searchForPlaces(place));
+        } else {
+          // Recursively search in all object values
+          Object.values(obj).forEach(value => searchForPlaces(value));
+        }
       }
     };
     
@@ -434,6 +454,15 @@ const TripDetails = () => {
       </div>
     );
   }
+  
+  // Debug logging
+  console.log('TripDetails debug info:', {
+    tripData,
+    parsedTripData,
+    itineraryData,
+    hotelsData,
+    itineraryLength: itineraryData?.length || 0
+  });
   
   return (
     <div className="min-h-screen py-10 px-4 md:px-8 relative overflow-hidden">
@@ -687,10 +716,12 @@ const TripDetails = () => {
           </div>
         ) : (
           // Fallback for when itinerary data isn't properly structured
-          (!parsedTripData.itinerary && 
-            !parsedTripData.day1 && 
-            !parsedTripData.Day1 && 
-            !Object.keys(parsedTripData || {}).some(key => key.toLowerCase().includes('day'))) ? (
+          (parsedTripData && 
+           !itineraryData.length && 
+           !parsedTripData?.itinerary && 
+           !parsedTripData?.day1 && 
+           !parsedTripData?.Day1 && 
+           !Object.keys(parsedTripData || {}).some(key => key.toLowerCase().includes('day'))) ? (
             <div className="mb-12">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                 <span className="mr-2">📅</span> Trip Itinerary
@@ -705,7 +736,32 @@ const TripDetails = () => {
                 </div>
               </div>
             </div>
-          ) : null
+          ) : (
+            // Show debug info when we have data but it's not displaying correctly
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <span className="mr-2">⚠️</span> Debug Info
+              </h2>
+              <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-gray-100">
+                <div className="prose max-w-none">
+                  <p><strong>Trip Data Available:</strong> {tripData ? 'Yes' : 'No'}</p>
+                  <p><strong>Parsed Trip Data:</strong> {parsedTripData ? 'Yes' : 'No'}</p>
+                  <p><strong>Itinerary Data Length:</strong> {itineraryData?.length || 0}</p>
+                  <p><strong>Has Itinerary Property:</strong> {parsedTripData?.itinerary ? 'Yes' : 'No'}</p>
+                  <p><strong>Has Day1 Property:</strong> {parsedTripData?.day1 ? 'Yes' : 'No'}</p>
+                  <p><strong>Has Day1 Property (capitalized):</strong> {parsedTripData?.Day1 ? 'Yes' : 'No'}</p>
+                  {parsedTripData && (
+                    <>
+                      <p><strong>Data Keys:</strong> {Object.keys(parsedTripData).join(', ')}</p>
+                      <pre className="whitespace-pre-wrap mt-4 p-4 bg-gray-100 rounded">
+                        {JSON.stringify(parsedTripData, null, 2)}
+                      </pre>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
         )}
 
         {/* Action Buttons */}

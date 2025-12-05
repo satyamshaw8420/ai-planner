@@ -671,34 +671,6 @@ function CreateTrip() {
           </div>
         </div>
 
-        {/* Popular Destinations */}
-        <div className="mb-8 group">
-          <h2 className="text-xl my-2 font-medium flex items-center gap-2">
-            <span className="text-2xl">🌟</span>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 font-bold">Popular Destinations</span>
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-            {[
-              'Paris, France',
-              'Bali, Indonesia',
-              'Tokyo, Japan',
-              'New York, USA',
-              'Dubai, UAE',
-              'London, UK',
-              'Rome, Italy',
-              'Sydney, Australia'
-            ].map((destination, index) => (
-              <button
-                key={index}
-                onClick={() => handleInputChange('destination', destination)}
-                className="text-left p-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl transition-all duration-300 hover:shadow-md hover:border-blue-300 hover:bg-blue-50/50 group"
-              >
-                <span className="group-hover:text-blue-600 transition-colors">{destination}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Create Trip Button */}
         <div className="mt-8">
           <button 

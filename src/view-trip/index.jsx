@@ -255,11 +255,21 @@ const ViewTrip = () => {
         return;
       }
       
-      // Recursively search in arrays and objects
+      // If this is an array of activities/places
       if (Array.isArray(obj)) {
         obj.forEach(item => searchForPlaces(item));
-      } else {
-        Object.values(obj).forEach(value => searchForPlaces(value));
+      } 
+      // If this is an object with nested activities
+      else if (typeof obj === 'object') {
+        // Check if this object has activities array
+        if (obj.activities && Array.isArray(obj.activities)) {
+          obj.activities.forEach(activity => searchForPlaces(activity));
+        } else if (obj.places && Array.isArray(obj.places)) {
+          obj.places.forEach(place => searchForPlaces(place));
+        } else {
+          // Recursively search in all object values
+          Object.values(obj).forEach(value => searchForPlaces(value));
+        }
       }
     };
     
@@ -568,6 +578,10 @@ const ViewTrip = () => {
 
   // Extract trip data
   const { userSelection, createdAt } = trip;
+  
+  // Extract hotels and weather from parsed data
+  const hotels = parsedTripData?.hotels || [];
+  const weather = parsedTripData?.weather || null;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -604,70 +618,77 @@ const ViewTrip = () => {
         </div>
 
         {/* Weather Section */}
-        {parsedTripData?.weather && renderWeather(parsedTripData.weather)}
+        {weather && renderWeather(weather)}
 
         {/* Place Recommendations Section */}
         {renderPlaceRecommendations(extractPlaceRecommendations(parsedTripData))}
 
         {/* Hotels Section */}
-        {parsedTripData?.hotels && renderHotels(parsedTripData.hotels)}
+        {hotels.length > 0 && renderHotels(hotels)}
 
         {/* Itinerary Section */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">🗓️ Daily Itinerary</h2>
 
           {/* Handle different itinerary structures */}
-          {parsedTripData?.itinerary ? (
-            // If itinerary is an array
-            Array.isArray(parsedTripData.itinerary) ? (
-              parsedTripData.itinerary.map((day, index) => {
-                return renderDayPlan(day, index + 1);
-              })
+          {parsedTripData ? (
+            // Check if itinerary is in the itinerary property
+            parsedTripData.itinerary ? (
+              // If itinerary is an array
+              Array.isArray(parsedTripData.itinerary) ? (
+                parsedTripData.itinerary.map((day, index) => {
+                  return renderDayPlan(day, index + 1);
+                })
+              ) : (
+                // If itinerary is an object with day keys
+                Object.entries(parsedTripData.itinerary)
+                  .sort(([a], [b]) => {
+                    // Sort day keys numerically (day1, day2, day10, etc.)
+                    const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
+                    const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
+                    return numA - numB;
+                  })
+                  .map(([dayKey, dayData], index) => {
+                    // Use the numeric part of the key for day numbering, fallback to index+1
+                    const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
+                    return renderDayPlan(dayData, dayNumber);
+                  })
+              )
             ) : (
-              // If itinerary is an object with day keys
-              Object.entries(parsedTripData.itinerary)
-                .sort(([a], [b]) => {
+              // Handle day1, day2, etc. format at top level
+              Object.keys(parsedTripData)
+                .filter(key => key.toLowerCase().startsWith('day'))
+                .sort((a, b) => {
                   // Sort day keys numerically (day1, day2, day10, etc.)
                   const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
                   const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
                   return numA - numB;
                 })
-                .map(([dayKey, dayData], index) => {
+                .map((dayKey, index) => {
+                  const dayData = parsedTripData[dayKey];
                   // Use the numeric part of the key for day numbering, fallback to index+1
                   const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
                   return renderDayPlan(dayData, dayNumber);
                 })
             )
           ) : (
-            // Handle day1, day2, etc. format at top level
-            Object.keys(parsedTripData || {})
-              .filter(key => key.toLowerCase().startsWith('day'))
-              .sort((a, b) => {
-                // Sort day keys numerically (day1, day2, day10, etc.)
-                const numA = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-                const numB = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-                return numA - numB;
-              })
-              .map((dayKey, index) => {
-                const dayData = parsedTripData[dayKey];
-                // Use the numeric part of the key for day numbering, fallback to index+1
-                const dayNumber = parseInt(dayKey.replace(/[^0-9]/g, '')) || (index + 1);
-                return renderDayPlan(dayData, dayNumber);
-              })
+            // No data to display
+            <p>No itinerary data available</p>
           )}
         </div>
 
         {/* Fallback for unknown structure */}
-        {(!parsedTripData?.itinerary && 
-          !parsedTripData?.day1 && 
-          !parsedTripData?.Day1 && 
-          !Object.keys(parsedTripData || {}).some(key => key.toLowerCase().includes('day'))) && (
+        {parsedTripData && Object.keys(parsedTripData).length > 0 && (
+          !parsedTripData.itinerary && 
+          !parsedTripData.day1 && 
+          !parsedTripData.Day1 && 
+          !Object.keys(parsedTripData).some(key => key.toLowerCase().includes('day')) && (
           <div className="bg-white rounded-xl shadow-md p-6 mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Trip Details</h2>
             <div className="mb-4">
               <h3 className="text-lg font-semibold mb-2">Data Structure Analysis:</h3>
               <p>Type: {typeof parsedTripData}</p>
-              <p>Keys: {typeof parsedTripData === 'object' ? Object.keys(parsedTripData || {}).join(', ') : 'N/A'}</p>
+              <p>Keys: {typeof parsedTripData === 'object' ? Object.keys(parsedTripData).join(', ') : 'N/A'}</p>
             </div>
             <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-96 overflow-auto">
               {typeof parsedTripData === 'string' 
@@ -675,7 +696,7 @@ const ViewTrip = () => {
                 : JSON.stringify(parsedTripData, null, 2)}
             </pre>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
