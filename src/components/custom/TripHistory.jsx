@@ -29,40 +29,59 @@ const TripHistory = () => {
     const fetchTripData = async () => {
       if (!Array.isArray(allTrips) || allTrips.length === 0) return;
       
-      setLoadingImages(true);
-      setLoadingHotels(true);
+      // Check if we need to fetch any new data
+      const tripsNeedingImages = allTrips.filter(trip => 
+        trip && 
+        trip.userSelection && 
+        trip.userSelection.location && 
+        trip.userSelection.location.label &&
+        !tripImages[trip._id]
+      );
+      
+      const tripsNeedingHotels = allTrips.filter(trip => 
+        trip && 
+        trip.userSelection && 
+        trip.userSelection.location && 
+        trip.userSelection.location.label &&
+        !tripHotels[trip._id]
+      );
+      
+      // If no trips need data, don't fetch
+      if (tripsNeedingImages.length === 0 && tripsNeedingHotels.length === 0) {
+        return;
+      }
+      
+      setLoadingImages(tripsNeedingImages.length > 0);
+      setLoadingHotels(tripsNeedingHotels.length > 0);
       const newImages = {};
       const newHotels = {};
       
       try {
-        for (const trip of allTrips) {
-          if (trip && trip.userSelection && trip.userSelection.location && trip.userSelection.location.label) {
-            // Only fetch if we don't already have the image
-            if (!tripImages[trip._id]) {
-              try {
-                const image = await fetchDestinationImage(trip.userSelection.location.label);
-                if (image) {
-                  newImages[trip._id] = image;
-                }
-              } catch (error) {
-                console.error('Error fetching image for trip:', trip._id, error);
-              }
+        // Fetch images for trips that need them
+        for (const trip of tripsNeedingImages) {
+          try {
+            const image = await fetchDestinationImage(trip.userSelection.location.label);
+            if (image) {
+              newImages[trip._id] = image;
             }
-            
-            // Only fetch if we don't already have the hotels
-            if (!tripHotels[trip._id]) {
-              try {
-                const hotels = await fetchTripHotels(trip.userSelection.location.label, 3);
-                if (hotels && hotels.length > 0) {
-                  newHotels[trip._id] = hotels;
-                }
-              } catch (error) {
-                console.error('Error fetching hotels for trip:', trip._id, error);
-              }
-            }
+          } catch (error) {
+            console.error('Error fetching image for trip:', trip._id, error);
           }
         }
         
+        // Fetch hotels for trips that need them
+        for (const trip of tripsNeedingHotels) {
+          try {
+            const hotels = await fetchTripHotels(trip.userSelection.location.label, 3);
+            if (hotels && hotels.length > 0) {
+              newHotels[trip._id] = hotels;
+            }
+          } catch (error) {
+            console.error('Error fetching hotels for trip:', trip._id, error);
+          }
+        }
+        
+        // Only update state if we have new data
         if (Object.keys(newImages).length > 0) {
           setTripImages(prev => ({ ...prev, ...newImages }));
         }

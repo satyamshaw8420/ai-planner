@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export const useFetchTrips = () => {
   const [userId, setUserId] = useState(null);
@@ -24,8 +24,10 @@ export const useFetchTrips = () => {
     userId ? { userId } : undefined
   );
   
-  // Filter results to only show user's trips when userId is available
-  const allTrips = userId && queryResult ? queryResult : [];
+  // Memoize the allTrips value to prevent unnecessary re-renders
+  const allTrips = useMemo(() => {
+    return userId && queryResult ? queryResult : [];
+  }, [userId, queryResult]);
   
   return { allTrips };
 };
